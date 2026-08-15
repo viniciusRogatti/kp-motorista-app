@@ -19,10 +19,12 @@
     },
     "preview": {
       "distribution": "internal",
-      "channel": "preview",
       "env": {
         "APP_ENV": "preview",
-        "EXPO_PUBLIC_BUILD_CHANNEL": "preview"
+        "EXPO_PUBLIC_API_URL": "https://kptransportes-backend.up.railway.app",
+        "EXPO_PUBLIC_SOCKET_URL": "https://kptransportes-backend.up.railway.app",
+        "EXPO_PUBLIC_BUILD_CHANNEL": "preview",
+        "EXPO_PUBLIC_OPERATIONS_MODE": "observation"
       },
       "android": {
         "buildType": "apk"

@@ -52,6 +52,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
   return {
     ...config,
     name: variant.name,
+    owner: 'vinnyzsouza',
     slug: 'kp-motorista-app',
     version: '0.1.0',
     orientation: 'portrait',
@@ -134,7 +135,9 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       buildDate: process.env.BUILD_DATE || new Date().toISOString(),
       commitSha: process.env.GIT_COMMIT_SHA || '',
       operationsMode: process.env.EXPO_PUBLIC_OPERATIONS_MODE || 'observation',
-      eas: { projectId: process.env.EXPO_PUBLIC_EAS_PROJECT_ID || undefined },
+      eas: {
+        projectId: process.env.EXPO_PUBLIC_EAS_PROJECT_ID || '3d541892-4d00-4433-a862-903e3d60a3ca',
+      },
     },
   };
 };
