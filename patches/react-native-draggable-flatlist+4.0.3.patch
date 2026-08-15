@@ -1,0 +1,16 @@
+diff --git a/node_modules/react-native-draggable-flatlist/src/hooks/useAutoScroll.tsx b/node_modules/react-native-draggable-flatlist/src/hooks/useAutoScroll.tsx
+index d3add83..b5e0f50 100644
+--- a/node_modules/react-native-draggable-flatlist/src/hooks/useAutoScroll.tsx
++++ b/node_modules/react-native-draggable-flatlist/src/hooks/useAutoScroll.tsx
+@@ -90,7 +90,10 @@ export function useAutoScroll() {
+ 
+   function scrollToInternal(offset: number) {
+     if (flatlistRef && "current" in flatlistRef) {
+-      flatlistRef.current?.scrollToOffset({ offset, animated: true });
++      // Android can leave consecutive animated scrolls between targets while a
++      // drag is active, which stalls edge autoscroll on long lists. These tiny
++      // immediate steps are already driven continuously by the worklet.
++      flatlistRef.current?.scrollToOffset({ offset, animated: false });
+     }
+   }
+ 
