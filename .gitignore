@@ -32,6 +32,16 @@ yarn-error.*
 
 # local env files
 .env*.local
+.env
+google-services.json
+*.jks
+*.keystore
+credentials.json
+
+# CNG: diretorios nativos sao gerados sob demanda
+/android
+/ios
+/.gradle-user-home
 
 # typescript
 *.tsbuildinfo
