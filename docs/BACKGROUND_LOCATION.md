@@ -2,18 +2,18 @@
 
 ## Política
 
-Rastrear somente entre início e encerramento explícitos de uma viagem ativa. Nunca rastrear deslogado, sem viagem, após finalização ou por simples abertura do app.
+Rastrear somente depois do aceite formal da rota. O motorista não possui botão para interromper o compartilhamento. Ele termina no logout ou uma hora após a conclusão operacional da última parada, o que acontecer primeiro.
 
-O diagnóstico atual oferece um teste manual independente do fluxo operacional. Ele usa `expo-location` + `expo-task-manager`, grava posições no SQLite e mostra foreground service. Pare o teste ao terminar.
+O diagnóstico oferece um teste manual independente do fluxo operacional. Na rota real, o app usa `expo-location` + `expo-task-manager`, grava primeiro no SQLite e envia ao backend com identificador idempotente. O prazo final também fica no armazenamento seguro e a tarefa encerra o serviço ao alcançá-lo.
 
 ## Fluxo final
 
 1. Confirmar sessão e viagem ativa no snapshot local/canônico.
-2. Solicitar foreground e explicar background.
-3. Criar sessão de rastreamento no backend.
+2. Registrar o aceite da rota no backend.
+3. Confirmar as permissões foreground/background já preparadas pela empresa.
 4. Iniciar tarefa com notificação “KP Motorista — viagem em andamento e localização ativa”.
 5. Persistir primeiro no SQLite e enviar em lote por endpoint idempotente.
-6. Parar ao finalizar/cancelar/logout e reconciliar viagens abandonadas com limite temporal do backend.
+6. Ao concluir todas as paradas, manter por uma hora e então parar e lembrar o motorista de fazer logout.
 
 ## Estratégia adaptativa proposta
 
@@ -23,9 +23,11 @@ O diagnóstico atual oferece um teste manual independente do fluxo operacional. 
 - fila local em perda de rede;
 - alertar posição atrasada sem inventar movimento.
 
-## Gap de backend
+## Integração disponível
 
-O serviço `registerLocation` existe, mas não está exposto por rota/controller. Até a fachada autenticada ser implementada, o app apenas grava posições locais. Não apontar para um endpoint presumido.
+- `POST /driver-app/tracking/location`: recebe uma posição autenticada e atualiza a sessão acompanhada pela página web.
+- Se a rede falhar, a posição permanece com estado `retry` no SQLite e é reenviada no próximo lote.
+- Ao aceitar, uma primeira posição é coletada imediatamente; as demais respeitam o intervalo de `/driver-app/tracking/config` e o deslocamento mínimo configurado no app.
 
 ## Bateria e fabricantes
 

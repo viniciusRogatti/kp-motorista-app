@@ -94,3 +94,16 @@ Após aprovação do package name, credenciais e URLs, execute `npm run build:pr
 ## Matriz física obrigatória
 
 Registre fabricante, modelo, Android, app/build, bateria e economia de bateria. Teste Samsung, Motorola e Xiaomi quando usados na frota: câmera, GPS, background/tela bloqueada, notificação persistente, Wi-Fi↔dados, modo avião, force stop, reinício, fila, upload e permissões. Faça testes dirigindo apenas em cenário controlado e com outra pessoa operando o aparelho.
+
+## Teste de localização com a página de monitoramento
+
+1. Instale um APK Preview gerado depois da integração ou recarregue o bundle no Development Build. As permissões nativas necessárias já constavam no projeto.
+2. Entre com um usuário vinculado ao motorista e confirme que há uma viagem atribuída.
+3. Na tela da viagem, toque em **Ativar** no bloco de localização.
+4. Autorize localização precisa e, quando o Android solicitar, **Permitir o tempo todo**.
+5. Abra a página web de monitoramento na data/empresa da rota. O contador “motoristas localizados” deve aumentar e o pin com o nome do motorista deve aparecer.
+6. Toque no pin para conferir o horário e a precisão da última posição.
+7. Bloqueie a tela e desloque o aparelho pelo menos 50 m para validar o serviço em segundo plano.
+8. Ao encerrar, toque em **Parar** ou saia da conta.
+
+Se o fabricante interromper atualizações com a tela bloqueada, retire a restrição de bateria do KP Motorista nas configurações do Android.
