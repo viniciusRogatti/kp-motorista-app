@@ -13,7 +13,14 @@ jest.mock('../src/services/http', () => {
   return { ApiError: MockApiError, apiRequest: jest.fn() };
 });
 
-import { getAssignedTrip, reorderTripStops, updateTripStopStatus } from '../src/services/trips';
+import {
+  acceptAssignedTrip,
+  getPendingReceipts,
+  getAssignedTrip,
+  registerDriverLocation,
+  reorderTripStops,
+  updateTripStopStatus,
+} from '../src/services/trips';
 import { apiRequest } from '../src/services/http';
 
 const requestMock = apiRequest as jest.MockedFunction<typeof apiRequest>;
@@ -170,6 +177,24 @@ describe('viagem atribuída', () => {
     }));
   });
 
+  it('registra aceite formal da rota', async () => {
+    requestMock.mockResolvedValueOnce({ accepted: true });
+    await expect(acceptAssignedTrip('token', 91, 'accept-1')).resolves.toMatchObject({ accepted: true });
+    expect(requestMock).toHaveBeenCalledWith('/driver-app/trips/91/accept', expect.objectContaining({
+      method: 'POST', token: 'token', body: expect.stringContaining('accept-1'),
+    }));
+  });
+
+  it('carrega somente as NFs entregues que aguardam foto', async () => {
+    requestMock.mockResolvedValueOnce({ total: 1, groups: [], items: [{
+      stopId: 3, tripId: 91, invoiceNumber: '102', customerName: 'Cliente', companyId: 2,
+      companyCode: 'mar_e_rio', companyName: 'MAR E RIO', receiptGroupName: 'KP - Canhotos',
+    }] });
+    const result = await getPendingReceipts('token', 91);
+    expect(result.items[0].receiptGroupName).toBe('KP - Canhotos');
+    expect(requestMock).toHaveBeenCalledWith('/driver-app/pending-receipts?tripId=91', { token: 'token' });
+  });
+
   it('envia a ordem completa e sequencial da rota', async () => {
     requestMock.mockResolvedValueOnce({
       accepted: true,
@@ -182,6 +207,34 @@ describe('viagem atribuída', () => {
     expect(JSON.parse(String(options.body))).toMatchObject({
       clientEventId: 'event-2',
       items: [{ stopId: 8, nextSequence: 1 }, { stopId: 3, nextSequence: 2 }],
+    });
+  });
+
+  it('envia a posicao do motorista com identificador idempotente', async () => {
+    requestMock.mockResolvedValueOnce({ accepted: true });
+
+    await expect(registerDriverLocation('token', {
+      id: 'location-1',
+      tripId: 91,
+      latitude: -22.91,
+      longitude: -47.06,
+      accuracy: 12,
+      speed: 8,
+      heading: 180,
+      recordedAt: '2026-08-16T12:00:00.000Z',
+    })).resolves.toMatchObject({ accepted: true });
+
+    expect(requestMock).toHaveBeenCalledWith('/driver-app/tracking/location', expect.objectContaining({
+      method: 'POST',
+      token: 'token',
+    }));
+    const body = JSON.parse(String(requestMock.mock.calls[0][1]?.body));
+    expect(body).toMatchObject({
+      trip_id: 91,
+      client_event_id: 'location-1',
+      latitude: -22.91,
+      longitude: -47.06,
+      source: 'mobile_background',
     });
   });
 });

@@ -6,7 +6,7 @@ function stop(id: number, sequence: number, customerId: string, status = 'delive
     id, companyId: 1, companyCode: 'marerio', sequence, invoiceNumber: String(100 + id),
     customerName: `Cliente ${customerId}`, city: 'Limeira', status, grossWeight: 10,
     boxQuantity: 1, customerId, phone: null, address: '', addressNumber: '', neighborhood: '',
-    state: 'SP', zipCode: '', representativeName: null, products: [], updatedAt: null,
+    state: 'SP', zipCode: '', representativeName: null, receiptGroupName: null, products: [], updatedAt: null,
   };
 }
 
@@ -20,6 +20,7 @@ const trip: AssignedTrip = {
   driver: { id: 1, name: 'Jonathan' },
   vehicle: { id: 1, model: 'VUC', licensePlate: 'ABC1D23' },
   summary: { totalStops: 4, completedStops: 4, pendingStops: 0 },
+  tracking: { acceptedAt: null, active: false, operationalCompletedAt: null, stopAt: null },
   stops: [stop(1, 1, 'A'), stop(2, 2, 'B'), stop(3, 3, 'A'), stop(4, 4, 'C')],
 };
 

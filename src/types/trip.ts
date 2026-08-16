@@ -18,6 +18,12 @@ export const assignedTripSchema = z.object({
     completedStops: z.number().int().nonnegative(),
     pendingStops: z.number().int().nonnegative(),
   }),
+  tracking: z.object({
+    acceptedAt: z.string().nullable(),
+    active: z.boolean(),
+    operationalCompletedAt: z.string().nullable(),
+    stopAt: z.string().nullable(),
+  }).default({ acceptedAt: null, active: false, operationalCompletedAt: null, stopAt: null }),
   stops: z.array(z.object({
     id: z.number().int().positive(),
     companyId: z.number().int().positive().nullable().default(null),
@@ -37,6 +43,7 @@ export const assignedTripSchema = z.object({
     state: z.string().default(''),
     zipCode: z.string().default(''),
     representativeName: z.string().nullable().default(null),
+    receiptGroupName: z.string().nullable().default(null),
     products: z.array(z.object({
       code: z.string(),
       description: z.string(),

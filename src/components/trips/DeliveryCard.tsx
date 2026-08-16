@@ -11,6 +11,7 @@ const labels: Record<string, string> = {
   pending: 'Pendente', assigned: 'Atribuída', on_the_way: 'A caminho', arrived: 'No local',
   delivered: 'Entregue', returned: 'Devolvida', cancelled: 'Cancelada', completed: 'Concluída',
   redelivery: 'Reentrega', retained: 'Retida',
+  delivered_pending_receipt: 'Entregue • foto pendente',
 };
 
 export function DeliveryCard({
@@ -53,6 +54,7 @@ export function DeliveryCard({
           style={[
             styles.card,
             { backgroundColor: theme.background, borderColor: theme.border },
+            stop.status === 'delivered_pending_receipt' && styles.pendingReceipt,
             prominent && styles.prominent,
           ]}
         >
@@ -89,6 +91,7 @@ const styles = StyleSheet.create({
   revealArrow: { color: '#AFC9E9', fontSize: 18, marginTop: 2 },
   card: { borderWidth: 1, borderRadius: 18, padding: 15, minHeight: 118 },
   prominent: { minHeight: 142, borderWidth: 2, shadowColor: '#0B1830', shadowOpacity: 0.14, shadowRadius: 10, shadowOffset: { width: 0, height: 5 }, elevation: 4 },
+  pendingReceipt: { backgroundColor: '#ECFDF3', borderColor: '#86D7AA', opacity: 0.78 },
   topRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   sequence: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
   sequenceText: { color: '#FFFFFF', fontWeight: '900', fontSize: 11 },

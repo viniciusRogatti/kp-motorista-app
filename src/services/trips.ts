@@ -42,6 +42,7 @@ const legacyTripSchema = z.object({
     state: z.string().optional(),
     zip_code: z.union([z.string(), z.number()]).transform(String).optional(),
     representative_name: z.string().nullable().optional(),
+    receipt_group_name: z.string().nullable().optional(),
     products: z.array(z.object({
       code: z.union([z.string(), z.number()]).transform(String).optional(),
       description: z.string().optional(),
@@ -65,6 +66,12 @@ const reorderResponseSchema = z.object({
     sequence: z.coerce.number().int().positive(),
   }).passthrough()),
 }).passthrough();
+const trackingConfigSchema = z.object({
+  config: z.object({
+    location_update_interval_ms: z.coerce.number().int().positive().default(300_000),
+  }),
+}).passthrough();
+const locationResponseSchema = z.object({ accepted: z.literal(true) }).passthrough();
 const finalStatuses = new Set(['returned', 'cancelled', 'delivered', 'completed', 'redelivery', 'retained']);
 
 function safeNumber(value: string | number | undefined) {
@@ -104,6 +111,7 @@ function mapLegacyTrip(response: unknown, expectedTripId?: number) {
     state: stop.state ?? '',
     zipCode: stop.zip_code ?? '',
     representativeName: stop.representative_name ?? null,
+    receiptGroupName: stop.receipt_group_name ?? null,
     products: (stop.products ?? []).map((product) => ({
       code: product.code ?? '',
       description: product.description ?? 'Produto sem descrição',
@@ -134,6 +142,7 @@ function mapLegacyTrip(response: unknown, expectedTripId?: number) {
       completedStops,
       pendingStops: Math.max(0, stops.length - completedStops),
     },
+    tracking: { acceptedAt: null, active: false, operationalCompletedAt: null, stopAt: null },
     stops,
   });
 }
@@ -157,6 +166,7 @@ function mergeTripDetails(base: ReturnType<typeof assignedTripSchema.parse>, det
         state: detail.state,
         zipCode: detail.zipCode,
         representativeName: detail.representativeName,
+        receiptGroupName: detail.receiptGroupName,
         products: detail.products,
       };
     }),
@@ -189,7 +199,7 @@ export async function getAssignedTrip(token: string, driverId: number) {
   }
 }
 
-export async function updateTripStopStatus(token: string, stopId: number, status: 'on_the_way' | 'arrived', clientEventId: string) {
+export async function updateTripStopStatus(token: string, stopId: number, status: 'on_the_way' | 'arrived' | 'delivered_pending_receipt', clientEventId: string) {
   const response = await apiRequest<unknown>(`/driver-app/trip-stops/${stopId}/status`, {
     method: 'POST',
     token,
@@ -198,6 +208,22 @@ export async function updateTripStopStatus(token: string, stopId: number, status
   const parsed = stopStatusResponseSchema.safeParse(response);
   if (!parsed.success) throw new ApiError('O servidor não confirmou a alteração da parada.', null, 'INVALID_STOP_STATUS_RESPONSE');
   return parsed.data;
+}
+
+export async function acceptAssignedTrip(token: string, tripId: number, clientEventId: string) {
+  return apiRequest<{ accepted: true; session?: { tracking_stop_at?: string | null } }>(`/driver-app/trips/${tripId}/accept`, {
+    method: 'POST', token, body: JSON.stringify({ clientEventId }),
+  });
+}
+
+export type PendingReceiptItem = {
+  stopId: number; tripId: number; invoiceNumber: string; customerName: string;
+  companyId: number; companyCode: string | null; companyName: string | null; receiptGroupName: string;
+};
+
+export async function getPendingReceipts(token: string, tripId?: number | null) {
+  const suffix = tripId ? `?tripId=${tripId}` : '';
+  return apiRequest<{ total: number; groups: { companyId: number; companyName: string | null; receiptGroupName: string; invoiceNumbers: string[] }[]; items: PendingReceiptItem[] }>(`/driver-app/pending-receipts${suffix}`, { token });
 }
 
 export async function reorderTripStops(token: string, tripId: number, stopIds: number[], clientEventId: string) {
@@ -213,4 +239,37 @@ export async function reorderTripStops(token: string, tripId: number, stopIds: n
   const parsed = reorderResponseSchema.safeParse(response);
   if (!parsed.success) throw new ApiError('O servidor não confirmou a nova ordem da rota.', null, 'INVALID_REORDER_RESPONSE');
   return parsed.data;
+}
+
+export async function getDriverTrackingConfig(token: string) {
+  const response = await apiRequest<unknown>('/driver-app/tracking/config', { token });
+  return trackingConfigSchema.parse(response).config;
+}
+
+export async function registerDriverLocation(token: string, location: {
+  id: string;
+  tripId: number;
+  latitude: number;
+  longitude: number;
+  accuracy: number | null;
+  speed: number | null;
+  heading: number | null;
+  recordedAt: string;
+}) {
+  const response = await apiRequest<unknown>('/driver-app/tracking/location', {
+    method: 'POST',
+    token,
+    body: JSON.stringify({
+      trip_id: location.tripId,
+      client_event_id: location.id,
+      latitude: location.latitude,
+      longitude: location.longitude,
+      accuracy_meters: location.accuracy,
+      speed_kmh: location.speed === null ? null : location.speed * 3.6,
+      heading: location.heading,
+      recorded_at: location.recordedAt,
+      source: 'mobile_background',
+    }),
+  });
+  return locationResponseSchema.parse(response);
 }

@@ -1,10 +1,10 @@
 import type { AssignedTrip } from '@/types/trip';
 
 type Stop = AssignedTrip['stops'][number];
-export type SimulatedStatus = 'pending' | 'on_the_way' | 'arrived' | 'delivered' | 'returned' | 'redelivery' | 'retained';
+export type SimulatedStatus = 'pending' | 'on_the_way' | 'arrived' | 'delivered_pending_receipt' | 'delivered' | 'returned' | 'redelivery' | 'retained';
 export type MoveDirection = 'top' | 'up' | 'down';
 
-const finalStatuses = new Set<SimulatedStatus>(['delivered', 'returned', 'redelivery', 'retained']);
+const finalStatuses = new Set<SimulatedStatus>(['delivered_pending_receipt', 'delivered', 'returned', 'redelivery', 'retained']);
 
 function clientKey(stop: Stop) {
   return stop.customerId || stop.customerName.trim().toLocaleLowerCase('pt-BR') || `stop-${stop.id}`;

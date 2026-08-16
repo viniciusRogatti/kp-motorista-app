@@ -1,7 +1,7 @@
 import * as Crypto from 'expo-crypto';
 import { Redirect, Link, useFocusEffect } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
-import { useCallback, useState, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useState, useSyncExternalStore } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -33,7 +33,13 @@ import {
   updateSimulatedStatus,
   type SimulatedStatus,
 } from '@/features/trips/simulation';
-import { getAssignedTrip, reorderTripStops, updateTripStopStatus } from '@/services/trips';
+import { acceptAssignedTrip, getAssignedTrip, reorderTripStops, updateTripStopStatus } from '@/services/trips';
+import {
+  isBackgroundTrackingActive,
+  startTripTracking,
+} from '@/tasks/backgroundLocation';
+import { readActiveTripTracking } from '@/tasks/tripTrackingState';
+import { scheduleRouteEndReminder } from '@/services/mobileNotifications';
 import type { AssignedTrip } from '@/types/trip';
 
 type Stop = AssignedTrip['stops'][number];
@@ -41,6 +47,7 @@ type StopGroup = { key: string; stops: Stop[] };
 type LoadState = 'loading' | 'ready' | 'refreshing' | 'offline';
 
 const finalStatuses = new Set(['delivered', 'returned', 'cancelled', 'completed', 'redelivery', 'retained']);
+const operationalFinalStatuses = new Set([...finalStatuses, 'delivered_pending_receipt']);
 
 function formatTripDate(value: string) {
   const match = value.slice(0, 10).match(/^(\d{4})[-/](\d{2})[-/](\d{2})$/);
@@ -105,6 +112,9 @@ export default function DriverHomeScreen() {
   const [activeOperation, setActiveOperation] = useState<string | null>(null);
   const [operationMessage, setOperationMessage] = useState('');
   const [statusStop, setStatusStop] = useState<Stop | null>(null);
+  const [trackingActive, setTrackingActive] = useState(false);
+  const [acceptingRoute, setAcceptingRoute] = useState(false);
+  const [trackingMessage, setTrackingMessage] = useState('');
   const sessionToken = session?.token;
   const sessionDriverId = session?.user.driverId;
   const operationsEnabled = appConfig.operationsMode === 'live';
@@ -142,11 +152,29 @@ export default function DriverHomeScreen() {
     };
   }, [db, refreshTrip, simulationEnabled]));
 
+  useFocusEffect(useCallback(() => {
+    let active = true;
+    void Promise.all([isBackgroundTrackingActive(), readActiveTripTracking()]).then(([started, tracking]) => {
+      if (active) setTrackingActive(started && Boolean(tracking));
+    });
+    return () => { active = false; };
+  }, []));
+
+  useEffect(() => {
+    if (!trip?.tracking.acceptedAt || !sessionToken) return;
+    void startTripTracking(trip.id, sessionToken, trip.tracking.stopAt)
+      .then(() => setTrackingActive(true))
+      .catch((error) => setTrackingMessage(error instanceof Error ? error.message : 'Nao foi possivel iniciar o rastreamento.'));
+  }, [sessionToken, trip?.id, trip?.tracking.acceptedAt, trip?.tracking.stopAt]);
+
+  useEffect(() => { void scheduleRouteEndReminder(trip?.tracking.stopAt); }, [trip?.tracking.stopAt]);
+
   if (isLoading) return <View style={styles.loading}><ActivityIndicator color="#1268E8" size="large" /></View>;
   if (!session) return <Redirect href="/" />;
 
   const displayName = session.user.name?.trim() || session.user.username;
-  const openStops = trip?.stops.filter((stop) => !finalStatuses.has(stop.status)) ?? [];
+  const openStops = trip?.stops.filter((stop) => !operationalFinalStatuses.has(stop.status)) ?? [];
+  const pendingReceiptStops = trip?.stops.filter((stop) => stop.status === 'delivered_pending_receipt') ?? [];
   const finishedStops = trip?.stops.filter((stop) => finalStatuses.has(stop.status)) ?? [];
   const currentStop = openStops.find((stop) => stop.status === 'arrived')
     || openStops.find((stop) => stop.status === 'on_the_way')
@@ -161,7 +189,23 @@ export default function DriverHomeScreen() {
     ? Math.min(100, Math.max(0, (trip.summary.completedStops / trip.summary.totalStops) * 100))
     : 0;
 
-  async function changeStopStatus(stop: Stop, status: 'on_the_way' | 'arrived') {
+  async function acceptRoute() {
+    if (!trip || !sessionToken || acceptingRoute) return;
+    setAcceptingRoute(true);
+    setTrackingMessage('');
+    try {
+      await acceptAssignedTrip(sessionToken, trip.id, Crypto.randomUUID());
+      await startTripTracking(trip.id, sessionToken, trip.tracking.stopAt);
+      setTrackingActive(true);
+      await refreshTrip(false);
+    } catch (error) {
+      setTrackingMessage(error instanceof Error ? error.message : 'Nao foi possivel aceitar a rota.');
+    } finally {
+      setAcceptingRoute(false);
+    }
+  }
+
+  async function changeStopStatus(stop: Stop, status: 'on_the_way' | 'arrived' | 'delivered_pending_receipt') {
     if (simulationEnabled) {
       setTrip((current) => current ? updateSimulatedStatus(current, stop.id, status) : current);
       return;
@@ -183,7 +227,7 @@ export default function DriverHomeScreen() {
     if (stop.status === 'pending' || stop.status === 'assigned') {
       return {
         label: 'Iniciar trajeto',
-        disabled: !operationsEnabled && !simulationEnabled,
+        disabled: (!operationsEnabled && !simulationEnabled) || (!simulationEnabled && !trip?.tracking.acceptedAt),
         loading: activeOperation === `status-${stop.id}`,
         onPress: () => void changeStopStatus(stop, 'on_the_way'),
       };
@@ -191,7 +235,7 @@ export default function DriverHomeScreen() {
     if (stop.status === 'on_the_way') {
       return {
         label: 'Cheguei ao cliente',
-        disabled: !operationsEnabled && !simulationEnabled,
+        disabled: (!operationsEnabled && !simulationEnabled) || (!simulationEnabled && !trip?.tracking.acceptedAt),
         loading: activeOperation === `status-${stop.id}`,
         onPress: () => void changeStopStatus(stop, 'arrived'),
       };
@@ -200,6 +244,14 @@ export default function DriverHomeScreen() {
       return {
         label: 'Registrar resultado',
         onPress: () => setStatusStop(stop),
+      };
+    }
+    if (stop.status === 'arrived') {
+      return {
+        label: 'Entreguei — aguardando foto',
+        disabled: !operationsEnabled || !trip?.tracking.acceptedAt,
+        loading: activeOperation === `status-${stop.id}`,
+        onPress: () => void changeStopStatus(stop, 'delivered_pending_receipt'),
       };
     }
     return undefined;
@@ -217,7 +269,7 @@ export default function DriverHomeScreen() {
   }
 
   async function promoteStop(stop: Stop) {
-    if (!operationsEnabled || !sessionToken || !trip || activeOperation) return;
+    if (!operationsEnabled || !sessionToken || !trip || !trip.tracking.acceptedAt || activeOperation) return;
     const selectedClient = clientKey(stop);
     const selectedGroup = [stop, ...openStops.filter((item) => item.id !== stop.id && clientKey(item) === selectedClient)];
     const selectedIds = new Set(selectedGroup.map((item) => item.id));
@@ -243,6 +295,10 @@ export default function DriverHomeScreen() {
   function confirmPromotion(stop: Stop) {
     if (!operationsEnabled) {
       Alert.alert('Somente leitura', 'As operações estão bloqueadas nesta configuração para proteger os dados reais.');
+      return;
+    }
+    if (!trip?.tracking.acceptedAt) {
+      Alert.alert('Aceite a rota', 'Confirme o aceite da rota antes de iniciar ou reorganizar as entregas.');
       return;
     }
     const hasActiveStop = openStops.some((item) => item.status === 'on_the_way' || item.status === 'arrived');
@@ -296,6 +352,19 @@ export default function DriverHomeScreen() {
         <View style={[styles.progressFill, { width: `${completionProgress}%` }]} />
       </View>
       <Text numberOfLines={1} style={styles.citiesText}>{cities.length ? cities.join('  •  ') : 'Cidades não informadas'}</Text>
+      {!simulationEnabled ? (
+        <View style={styles.trackingRow}>
+          <View style={[styles.trackingDot, trip.tracking.acceptedAt && trackingActive && styles.trackingDotActive]} />
+          <View style={styles.trackingCopy}>
+            <Text style={styles.trackingTitle}>{trip.tracking.acceptedAt ? 'Rota aceita — localizacao automatica' : 'Rota aguardando aceite'}</Text>
+            <Text style={styles.trackingHint}>{trip.tracking.acceptedAt ? 'O compartilhamento encerra no logout ou uma hora apos a rota.' : 'Ao aceitar, o rastreamento sera iniciado automaticamente.'}</Text>
+          </View>
+          {!trip.tracking.acceptedAt ? <Pressable disabled={acceptingRoute} onPress={() => void acceptRoute()} style={styles.trackingButton}>
+            {acceptingRoute ? <ActivityIndicator color="#1555A0" size="small" /> : <Text style={styles.trackingButtonText}>Aceitar rota</Text>}
+          </Pressable> : <Text style={styles.trackingLocked}>Obrigatorio</Text>}
+        </View>
+      ) : null}
+      {trackingMessage ? <Text style={styles.trackingError}>{trackingMessage}</Text> : null}
     </View>
   ) : null;
 
@@ -349,9 +418,20 @@ export default function DriverHomeScreen() {
     </View>
   ) : null;
 
+  const pendingReceiptsContent = pendingReceiptStops.length ? (
+    <View style={styles.section}>
+      <SectionTitle title="Entregues — falta foto" count={pendingReceiptStops.length} subtitle="Poste no grupo indicado para finalizar" />
+      {pendingReceiptStops.map((stop) => <DeliveryCard key={stop.id} stop={stop} onDetails={() => setDetailsStop(stop)} />)}
+      <Link href={{ pathname: '/pending-receipts', params: { tripId: String(trip?.id || '') } } as never} asChild>
+        <Pressable style={styles.pendingReceiptButton}><Text style={styles.pendingReceiptButtonText}>Ver NFs e grupos de WhatsApp</Text></Pressable>
+      </Link>
+    </View>
+  ) : null;
+
   const footerContent = (
     <View style={styles.listFooter}>
       {finishedContent}
+      {pendingReceiptsContent}
       {message ? <View style={styles.offlineBox}><Text style={styles.offlineText}>{message} O último roteiro salvo continua visível.</Text></View> : null}
       {operationMessage ? <View style={styles.operationBox}><Text style={styles.operationText}>{operationMessage}</Text></View> : null}
       <View style={styles.footerActions}>
@@ -429,6 +509,7 @@ export default function DriverHomeScreen() {
               </View>
             ) : null}
 
+            {pendingReceiptsContent}
             {finishedContent}
           </>
         ) : (
@@ -492,6 +573,20 @@ const styles = StyleSheet.create({
   progressTrack: { height: 7, overflow: 'hidden', borderRadius: 4, backgroundColor: '#E4E9EF' },
   progressFill: { height: '100%', minWidth: 0, borderRadius: 4, backgroundColor: '#25A66A' },
   citiesText: { color: '#536279', fontSize: 9, fontWeight: '800' },
+  trackingRow: { marginTop: 3, flexDirection: 'row', alignItems: 'center', gap: 8, borderTopWidth: 1, borderTopColor: '#E8ECF1', paddingTop: 9 },
+  trackingDot: { width: 9, height: 9, borderRadius: 5, backgroundColor: '#AAB3BF' },
+  trackingDotActive: { backgroundColor: '#20A464' },
+  trackingCopy: { flex: 1 },
+  trackingTitle: { color: '#24334A', fontSize: 10, fontWeight: '900' },
+  trackingHint: { color: '#748196', fontSize: 9, marginTop: 1 },
+  trackingButton: { minWidth: 61, height: 30, borderRadius: 9, backgroundColor: '#E9F1FC', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 9 },
+  trackingButtonStop: { backgroundColor: '#FCECEC' },
+  trackingButtonText: { color: '#1555A0', fontSize: 10, fontWeight: '900' },
+  trackingLocked: { color: '#17643D', fontSize: 10, fontWeight: '900', backgroundColor: '#EAF8F0', borderRadius: 9, paddingHorizontal: 9, paddingVertical: 7 },
+  trackingButtonStopText: { color: '#9B2C2C' },
+  trackingError: { color: '#9B2C2C', fontSize: 9, lineHeight: 13, fontWeight: '700' },
+  pendingReceiptButton: { minHeight: 42, borderRadius: 13, backgroundColor: '#EAF8F0', borderWidth: 1, borderColor: '#A7DFC0', alignItems: 'center', justifyContent: 'center' },
+  pendingReceiptButtonText: { color: '#17643D', fontSize: 12, fontWeight: '900' },
   section: { marginHorizontal: 18, gap: 10 },
   sectionHeading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 },
   sectionTitle: { color: '#17243A', fontSize: 18, fontWeight: '900' },
