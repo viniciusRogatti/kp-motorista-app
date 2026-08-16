@@ -3,7 +3,8 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 import { clearStoredSession, readStoredSession, writeStoredSession } from './sessionStorage';
 import type { DriverSession } from './types';
 import { loginDriver, logoutDriver, validateDriverSession } from '@/services/auth';
-import { stopDiagnosticTracking } from '@/tasks/backgroundLocation';
+import { stopTripTracking } from '@/tasks/backgroundLocation';
+import { notifyTrackingLogout } from '@/services/mobileNotifications';
 
 type AuthContextValue = {
   session: DriverSession | null;
@@ -47,7 +48,8 @@ export function AuthProvider({ children }: PropsWithChildren) {
 
   const signOut = useCallback(async () => {
     const token = session?.token;
-    await stopDiagnosticTracking();
+    if (token) await notifyTrackingLogout(token).catch(() => undefined);
+    await stopTripTracking();
     await clearStoredSession();
     setSession(null);
     if (token) await logoutDriver(token);

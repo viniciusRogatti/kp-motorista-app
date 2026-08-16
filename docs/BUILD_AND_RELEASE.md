@@ -35,3 +35,15 @@ Pode distribuir mudanças de JS/TS, estilos e assets que sejam compatíveis com 
 7. revisão de logs para excluir dados sensíveis.
 
 Uma futura resposta do backend deve informar versão mínima suportada. O app então bloqueará o fluxo com mensagem de atualização obrigatória, sem inferir compatibilidade localmente.
+
+## Firebase / FCM V1 para o Preview APK
+
+O APK de testes usa o package `com.kptransportes.motorista.preview`. No Firebase, adicione exatamente esse app Android e baixe o `google-services.json` correspondente. Não reutilize o arquivo de outro package.
+
+1. No projeto Firebase, habilite o Cloud Messaging e crie/baixe uma chave de conta de serviço para FCM V1.
+2. No EAS, abra `eas credentials -p android`, selecione o perfil Android e envie a chave da conta de serviço em **Push Notifications (FCM V1)**.
+3. Cadastre o `google-services.json` como variável de arquivo EAS chamada `GOOGLE_SERVICES_JSON` no ambiente `preview`. O `app.config.ts` só inclui o arquivo quando essa variável existe, evitando versionar o segredo.
+4. Confirme `EXPO_PUBLIC_EAS_PROJECT_ID=3d541892-4d00-4433-a862-903e3d60a3ca` e execute `npm run build:preview`.
+5. Instale o novo APK em aparelho físico, aceite notificações e confira no backend o cadastro em `driver_push_tokens`.
+
+Alterar Firebase, `google-services.json` ou permissões nativas exige um APK novo; não pode ser entregue por atualização OTA. Para produção, repita o cadastro com o package definitivo, sem compartilhar credenciais do Preview.

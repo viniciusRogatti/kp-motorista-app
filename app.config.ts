@@ -63,6 +63,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     android: {
       package: `${packageBase}${variant.suffix}`,
       versionCode: 1,
+      ...(process.env.GOOGLE_SERVICES_JSON ? { googleServicesFile: process.env.GOOGLE_SERVICES_JSON } : {}),
       adaptiveIcon: {
         backgroundColor: '#0B1830',
         foregroundImage: './assets/images/android-icon-foreground.png',
