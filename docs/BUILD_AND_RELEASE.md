@@ -3,12 +3,12 @@
 ## Estratégia
 
 - `version`: versão funcional do app; começa em `0.1.0`.
-- `android.versionCode`: inteiro monotônico; começa em 1.
+- `android.versionCode`: inteiro monotônico administrado remotamente e incrementado pelo EAS Build.
 - `runtimeVersion`: política `appVersion`; OTA só atravessa binários compatíveis.
 - canais: `development`, `preview`, `production`.
 - artefatos: APK para Development/Preview; AAB para Production.
 
-Antes de cada release, registre build date e commit via CI e aumente `versionCode`. O app mostra versão, build, ambiente e canal.
+Antes de cada release, registre build date e commit via CI. O EAS incrementa o `versionCode` nos perfis Preview e Production. O app mostra versão, build, ambiente e canal.
 
 ## Comandos
 
@@ -22,7 +22,15 @@ Todos exigem revisão humana, autenticação EAS e variáveis do ambiente. Nenhu
 
 ## EAS Update
 
-Pode distribuir mudanças de JS/TS, estilos e assets que sejam compatíveis com a mesma runtime nativa. Exigem novo APK/AAB: biblioteca nativa, permissão, config plugin, Manifest, Kotlin, Firebase, package name, SDK Expo ou qualquer alteração de contrato nativo. Nunca publique OTA automaticamente.
+O APK precisa ter sido criado depois da instalação do `expo-updates` e deve apontar para o canal correto. Para publicar uma atualização de homologação compatível com a mesma runtime:
+
+```bash
+npm run update:preview -- --message "fix: descrição da atualização"
+```
+
+O app verifica atualizações ao iniciar, baixa em segundo plano e aplica a versão baixada na próxima inicialização. Pode distribuir mudanças de JS/TS, estilos e assets que sejam compatíveis com a mesma runtime nativa. Exigem novo APK/AAB: biblioteca nativa, permissão, config plugin, Manifest, Kotlin, Firebase, package name, SDK Expo ou qualquer alteração de contrato nativo. Nunca publique OTA automaticamente.
+
+O primeiro APK com suporte ao EAS Update ainda precisa ser enviado e instalado manualmente. Builds anteriores não passam a aceitar OTA retroativamente.
 
 ## Checklist Preview/Production
 

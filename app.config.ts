@@ -37,6 +37,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
   const apiUrl = process.env.EXPO_PUBLIC_API_URL || 'http://127.0.0.1:3001';
   const socketUrl = process.env.EXPO_PUBLIC_SOCKET_URL || apiUrl;
   const packageBase = process.env.ANDROID_PACKAGE_NAME || 'com.kptransportes.motorista';
+  const easProjectId = process.env.EXPO_PUBLIC_EAS_PROJECT_ID || '3d541892-4d00-4433-a862-903e3d60a3ca';
 
   requireHttpUrl('EXPO_PUBLIC_API_URL', apiUrl, environment);
   requireHttpUrl('EXPO_PUBLIC_SOCKET_URL', socketUrl, environment);
@@ -61,9 +62,13 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     scheme: environment === 'production' ? 'kpmotorista' : `kpmotorista-${environment}`,
     userInterfaceStyle: 'light',
     runtimeVersion: { policy: 'appVersion' },
+    updates: {
+      url: `https://u.expo.dev/${easProjectId}`,
+      checkAutomatically: 'ON_LOAD',
+      fallbackToCacheTimeout: 0,
+    },
     android: {
       package: `${packageBase}${variant.suffix}`,
-      versionCode: 1,
       ...(process.env.GOOGLE_SERVICES_JSON ? { googleServicesFile: process.env.GOOGLE_SERVICES_JSON } : {}),
       adaptiveIcon: {
         backgroundColor: '#0B1830',
@@ -95,6 +100,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     plugins: [
       './plugins/withAndroidDeveloperVerificationToken',
       'expo-router',
+      'expo-image',
       'expo-sqlite',
       ['expo-secure-store', { configureAndroidBackup: true }],
       [
@@ -138,7 +144,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       commitSha: process.env.GIT_COMMIT_SHA || '',
       operationsMode: process.env.EXPO_PUBLIC_OPERATIONS_MODE || 'observation',
       eas: {
-        projectId: process.env.EXPO_PUBLIC_EAS_PROJECT_ID || '3d541892-4d00-4433-a862-903e3d60a3ca',
+        projectId: easProjectId,
       },
     },
   };

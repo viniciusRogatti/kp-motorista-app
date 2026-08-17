@@ -2,7 +2,7 @@
   "$schema": "https://json.schemastore.org/eas.json",
   "cli": {
     "version": ">= 16.17.0",
-    "appVersionSource": "local"
+    "appVersionSource": "remote"
   },
   "build": {
     "development": {
@@ -20,6 +20,8 @@
     "preview": {
       "distribution": "internal",
       "environment": "preview",
+      "channel": "preview",
+      "autoIncrement": true,
       "env": {
         "APP_ENV": "preview",
         "EXPO_PUBLIC_API_URL": "https://kptransportes-backend.up.railway.app",
@@ -33,6 +35,7 @@
     },
     "production": {
       "channel": "production",
+      "autoIncrement": true,
       "env": {
         "APP_ENV": "production",
         "EXPO_PUBLIC_BUILD_CHANNEL": "production"
