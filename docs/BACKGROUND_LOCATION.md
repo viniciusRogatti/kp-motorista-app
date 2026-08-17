@@ -11,7 +11,7 @@ O diagnóstico oferece um teste manual independente do fluxo operacional. Na rot
 1. Confirmar sessão e viagem ativa no snapshot local/canônico.
 2. Registrar o aceite da rota no backend.
 3. Confirmar as permissões foreground/background já preparadas pela empresa.
-4. Iniciar tarefa com notificação “KP Motorista — viagem em andamento e localização ativa”.
+4. Iniciar tarefa com notificação “ASTRO — viagem em andamento e localização ativa”.
 5. Persistir primeiro no SQLite e enviar em lote por endpoint idempotente.
 6. Ao concluir todas as paradas, manter por uma hora e então parar e lembrar o motorista de fazer logout.
 

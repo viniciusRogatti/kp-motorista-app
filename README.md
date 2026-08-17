@@ -1,4 +1,6 @@
-# KP Motorista
+# ASTRO
+
+Assistente de Rotas e Gestão Operacional da KP Transportes.
 
 Novo aplicativo Android dos motoristas da KP Transportes. Este projeto é independente de `apps/driver-app`; o aplicativo anterior foi usado somente como referência operacional.
 

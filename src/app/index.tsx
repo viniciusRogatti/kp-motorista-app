@@ -2,6 +2,7 @@ import { Redirect, Link } from 'expo-router';
 import { useState } from 'react';
 import {
   ActivityIndicator,
+  Image,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -67,10 +68,16 @@ export default function LoginScreen() {
             keyboardShouldPersistTaps="handled"
           >
             <View style={styles.brand}>
-              <View style={styles.brandMark}><Text style={styles.brandMarkText}>KP</Text></View>
+              <Image
+                accessibilityLabel="ASTRO, assistente da operação"
+                resizeMode="contain"
+                source={require('../../assets/images/astro.png')}
+                style={styles.brandMark}
+              />
               <Text style={styles.eyebrow}>KP TRANSPORTES</Text>
-              <Text style={styles.title}>Área do motorista</Text>
-              <Text style={styles.subtitle}>Entre com o mesmo usuário utilizado no sistema da transportadora.</Text>
+              <Text style={styles.title}>ASTRO</Text>
+              <Text style={styles.subtitle}>Assistente de Rotas e Gestão Operacional</Text>
+              <Text style={styles.loginHint}>Entre com o mesmo usuário utilizado no sistema da transportadora.</Text>
             </View>
 
             <View style={styles.card}>
@@ -152,11 +159,11 @@ const styles = StyleSheet.create({
   loadingScreen: { flex: 1, backgroundColor: '#0B1830', alignItems: 'center', justifyContent: 'center', gap: 14 },
   loadingText: { color: '#B8C6DA', fontSize: 14 },
   brand: { paddingTop: 18 },
-  brandMark: { width: 52, height: 52, borderRadius: 16, backgroundColor: '#2E80FF', alignItems: 'center', justifyContent: 'center', marginBottom: 22 },
-  brandMarkText: { color: '#FFFFFF', fontWeight: '900', fontSize: 20, letterSpacing: -1 },
+  brandMark: { width: 112, height: 112, marginBottom: 10 },
   eyebrow: { color: '#6E9DE5', fontWeight: '800', fontSize: 11, letterSpacing: 2.1 },
   title: { color: '#FFFFFF', fontWeight: '900', fontSize: 36, letterSpacing: -1.4, marginTop: 5 },
-  subtitle: { color: '#B8C6DA', fontSize: 15, lineHeight: 22, marginTop: 9, maxWidth: 340 },
+  subtitle: { color: '#DCE7F7', fontSize: 16, fontWeight: '700', lineHeight: 22, marginTop: 4, maxWidth: 340 },
+  loginHint: { color: '#9EADC3', fontSize: 13, lineHeight: 19, marginTop: 9, maxWidth: 340 },
   card: { backgroundColor: '#FFFFFF', borderRadius: 24, padding: 22 },
   cardTitle: { color: '#152033', fontWeight: '900', fontSize: 22, marginBottom: 20 },
   label: { color: '#344156', fontSize: 13, fontWeight: '800', marginBottom: 7 },

@@ -4,9 +4,9 @@
 
 | Ambiente | Nome | Artefato | Backend | Metro | Faixa |
 |---|---|---|---|---:|---:|
-| development | KP Motorista Dev | APK dev client | desenvolvimento/homologação | Sim | Sim |
-| preview | KP Motorista Teste | APK interno | homologação | Não | Sim |
-| production | KP Motorista | AAB | produção | Não | Não |
+| development | ASTRO Dev | APK dev client | desenvolvimento/homologação | Sim | Sim |
+| preview | ASTRO Homologação | APK interno | homologação | Não | Sim |
+| production | ASTRO | AAB | produção | Não | Não |
 
 `APP_ENV` escolhe a variante. Development e Preview nunca recebem URL de produção por padrão. Preview exige `EXPO_PUBLIC_API_URL`; Production também rejeita host local e exige `ANDROID_PACKAGE_NAME` explícito.
 

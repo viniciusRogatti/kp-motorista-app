@@ -29,7 +29,7 @@ Na inspeção inicial, Node 20.19.5, JDK 17 e ADB 36.0.2 estavam disponíveis. O
 5. Configure no EAS as variáveis `EXPO_PUBLIC_API_URL` e `EXPO_PUBLIC_SOCKET_URL` do perfil Development.
 6. Execute `npm run build:development`. Esse passo envia um build à EAS e pode consumir cota; revise antes.
 7. Baixe o APK pelo link, autorize a fonte no Android e instale.
-8. Execute `npm run start:dev-client`, abra “KP Motorista Dev” e selecione o servidor Metro.
+8. Execute `npm run start:dev-client`, abra “ASTRO Dev” e selecione o servidor Metro.
 
 ## Build local por USB
 
@@ -106,4 +106,4 @@ Registre fabricante, modelo, Android, app/build, bateria e economia de bateria. 
 7. Bloqueie a tela e desloque o aparelho pelo menos 50 m para validar o serviço em segundo plano.
 8. Ao encerrar, toque em **Parar** ou saia da conta.
 
-Se o fabricante interromper atualizações com a tela bloqueada, retire a restrição de bateria do KP Motorista nas configurações do Android.
+Se o fabricante interromper atualizações com a tela bloqueada, retire a restrição de bateria do ASTRO nas configurações do Android.

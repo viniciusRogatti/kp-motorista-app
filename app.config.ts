@@ -3,9 +3,9 @@ import type { ConfigContext, ExpoConfig } from 'expo/config';
 type AppEnvironment = 'development' | 'preview' | 'production';
 
 const ENVIRONMENTS: Record<AppEnvironment, { name: string; suffix: string }> = {
-  development: { name: 'KP Motorista Dev', suffix: '.dev' },
-  preview: { name: 'KP Motorista Teste', suffix: '.preview' },
-  production: { name: 'KP Motorista', suffix: '' },
+  development: { name: 'ASTRO Dev', suffix: '.dev' },
+  preview: { name: 'ASTRO Homologação', suffix: '.preview' },
+  production: { name: 'ASTRO', suffix: '' },
 };
 
 function resolveEnvironment(value?: string): AppEnvironment {
@@ -54,9 +54,10 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     name: variant.name,
     owner: 'vinnyzsouza',
     slug: 'kp-motorista-app',
+    description: 'Assistente de Rotas e Gestão Operacional',
     version: '0.1.0',
     orientation: 'portrait',
-    icon: './assets/images/icon.png',
+    icon: './assets/images/astro.png',
     scheme: environment === 'production' ? 'kpmotorista' : `kpmotorista-${environment}`,
     userInterfaceStyle: 'light',
     runtimeVersion: { policy: 'appVersion' },
@@ -66,8 +67,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       ...(process.env.GOOGLE_SERVICES_JSON ? { googleServicesFile: process.env.GOOGLE_SERVICES_JSON } : {}),
       adaptiveIcon: {
         backgroundColor: '#0B1830',
-        foregroundImage: './assets/images/android-icon-foreground.png',
-        monochromeImage: './assets/images/android-icon-monochrome.png',
+        foregroundImage: './assets/images/astro.png',
       },
       permissions: [
         'ACCESS_COARSE_LOCATION',
@@ -119,8 +119,8 @@ export default ({ config }: ConfigContext): ExpoConfig => {
         'expo-splash-screen',
         {
           backgroundColor: '#0B1830',
-          image: './assets/images/splash-icon.png',
-          imageWidth: 96,
+          image: './assets/images/astro.png',
+          imageWidth: 180,
         },
       ],
       ['expo-dev-client', { launchMode: 'most-recent' }],

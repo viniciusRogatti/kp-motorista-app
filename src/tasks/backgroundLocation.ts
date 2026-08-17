@@ -98,7 +98,7 @@ export async function startDiagnosticTracking() {
     distanceInterval: 50,
     pausesUpdatesAutomatically: false,
     foregroundService: {
-      notificationTitle: 'KP Motorista — rastreamento de teste',
+      notificationTitle: 'ASTRO — rastreamento de teste',
       notificationBody: 'Diagnostico ativo. Pare o teste ao finalizar.',
       killServiceOnDestroy: false,
     },
@@ -135,7 +135,7 @@ export async function startTripTracking(tripId: number, token: string, stopAt: s
       distanceInterval: 50,
       pausesUpdatesAutomatically: false,
       foregroundService: {
-        notificationTitle: 'KP Motorista — localizacao ativa',
+        notificationTitle: 'ASTRO — localizacao ativa',
         notificationBody: 'Sua posicao esta sendo compartilhada durante a viagem.',
         killServiceOnDestroy: false,
       },
