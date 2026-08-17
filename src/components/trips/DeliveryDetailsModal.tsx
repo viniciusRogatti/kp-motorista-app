@@ -6,8 +6,9 @@ import type { AssignedTrip } from '@/types/trip';
 import { getCompanyTheme } from './companyTheme';
 
 type Stop = AssignedTrip['stops'][number];
+const actionableStatuses = new Set(['pending', 'assigned', 'on_the_way', 'arrived']);
 
-export function DeliveryDetailsModal({ stop, onClose }: { stop: Stop | null; onClose: () => void }) {
+export function DeliveryDetailsModal({ stop, onClose, onOpenActions }: { stop: Stop | null; onClose: () => void; onOpenActions?: (stop: Stop) => void }) {
   if (!stop) return null;
   const theme = getCompanyTheme(stop.companyCode);
   const address = [stop.address, stop.addressNumber, stop.neighborhood].filter(Boolean).join(', ');
@@ -37,6 +38,18 @@ export function DeliveryDetailsModal({ stop, onClose }: { stop: Stop | null; onC
               </View>
             )) : <Text style={styles.empty}>Produtos não informados pelo backend.</Text>}
           </View>
+          {onOpenActions && actionableStatuses.has(stop.status) ? (
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => {
+                onClose();
+                onOpenActions(stop);
+              }}
+              style={styles.outcomeButton}
+            >
+              <Text style={styles.outcomeButtonText}>Registrar ocorrência ou resultado</Text>
+            </Pressable>
+          ) : null}
         </ScrollView>
       </SafeAreaView>
     </Modal>
@@ -70,4 +83,6 @@ const styles = StyleSheet.create({
   productName: { color: '#273449', fontWeight: '800', fontSize: 13 },
   productCode: { color: '#8490A0', fontSize: 10, marginTop: 3 },
   empty: { color: '#738094', fontSize: 13, paddingVertical: 10 },
+  outcomeButton: { minHeight: 50, borderRadius: 15, backgroundColor: '#173B67', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 16 },
+  outcomeButtonText: { color: '#FFFFFF', fontSize: 13, fontWeight: '900', textAlign: 'center' },
 });

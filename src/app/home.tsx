@@ -33,7 +33,15 @@ import {
   updateSimulatedStatus,
   type SimulatedStatus,
 } from '@/features/trips/simulation';
-import { acceptAssignedTrip, getAssignedTrip, reorderTripStops, updateTripStopStatus } from '@/services/trips';
+import {
+  acceptAssignedTrip,
+  getAssignedTrip,
+  reorderTripStops,
+  requestCancellationRebilling,
+  selectNextTripStop,
+  updateTripStopStatus,
+  type DriverStopStatus,
+} from '@/services/trips';
 import {
   isBackgroundTrackingActive,
   startTripTracking,
@@ -205,7 +213,7 @@ export default function DriverHomeScreen() {
     }
   }
 
-  async function changeStopStatus(stop: Stop, status: 'on_the_way' | 'arrived' | 'delivered_pending_receipt') {
+  async function changeStopStatus(stop: Stop, status: DriverStopStatus) {
     if (simulationEnabled) {
       setTrip((current) => current ? updateSimulatedStatus(current, stop.id, status) : current);
       return;
@@ -248,10 +256,10 @@ export default function DriverHomeScreen() {
     }
     if (stop.status === 'arrived') {
       return {
-        label: 'Entreguei — aguardando foto',
+        label: 'Registrar resultado',
         disabled: !operationsEnabled || !trip?.tracking.acceptedAt,
-        loading: activeOperation === `status-${stop.id}`,
-        onPress: () => void changeStopStatus(stop, 'delivered_pending_receipt'),
+        loading: activeOperation === `status-${stop.id}` || activeOperation === `cancel-${stop.id}`,
+        onPress: () => setStatusStop(stop),
       };
     }
     return undefined;
@@ -268,6 +276,43 @@ export default function DriverHomeScreen() {
     setTrip((current) => current ? reorderSimulatedClients(current, orderedStopIds) : current);
   }
 
+  async function finishLiveDrag(groups: StopGroup[]) {
+    if (!sessionToken || !trip || !groups.length || activeOperation) return;
+    if (!operationsEnabled || !trip.tracking.acceptedAt) {
+      Alert.alert('Aceite a rota', 'Confirme o aceite da rota antes de reorganizar as entregas.');
+      return;
+    }
+    const orderedOpenIds = groups.flatMap((group) => group.stops.map((stop) => stop.id));
+    const openIdSet = new Set(orderedOpenIds);
+    const orderedStopIds = [...orderedOpenIds, ...trip.stops.filter((stop) => !openIdSet.has(stop.id)).map((stop) => stop.id)];
+    const firstStop = groups[0].stops[0];
+    const firstClientChanged = !currentStop || clientKey(firstStop) !== clientKey(currentStop);
+
+    setActiveOperation(`reorder-${firstStop.id}`);
+    setOperationMessage('');
+    try {
+      if (firstClientChanged) {
+        await selectNextTripStop(sessionToken, firstStop.id, orderedStopIds, Crypto.randomUUID());
+      } else {
+        await reorderTripStops(sessionToken, trip.id, orderedStopIds, Crypto.randomUUID());
+      }
+      await refreshTrip(false);
+    } catch (error) {
+      setOperationMessage(error instanceof Error ? error.message : 'Não foi possível salvar a nova ordem.');
+      await refreshTrip(false);
+    } finally {
+      setActiveOperation(null);
+    }
+  }
+
+  function finishDrag(groups: StopGroup[]) {
+    if (simulationEnabled) {
+      finishSimulatedDrag(groups);
+      return;
+    }
+    void finishLiveDrag(groups);
+  }
+
   async function promoteStop(stop: Stop) {
     if (!operationsEnabled || !sessionToken || !trip || !trip.tracking.acceptedAt || activeOperation) return;
     const selectedClient = clientKey(stop);
@@ -279,10 +324,7 @@ export default function DriverHomeScreen() {
     setActiveOperation(`reorder-${stop.id}`);
     setOperationMessage('');
     try {
-      await reorderTripStops(sessionToken, trip.id, orderedStops.map((item) => item.id), Crypto.randomUUID());
-      if (stop.status === 'pending' || stop.status === 'assigned') {
-        await updateTripStopStatus(sessionToken, stop.id, 'on_the_way', Crypto.randomUUID());
-      }
+      await selectNextTripStop(sessionToken, stop.id, orderedStops.map((item) => item.id), Crypto.randomUUID());
       await refreshTrip(false);
     } catch (error) {
       setOperationMessage(error instanceof Error ? error.message : 'Não foi possível alterar a próxima parada.');
@@ -301,19 +343,44 @@ export default function DriverHomeScreen() {
       Alert.alert('Aceite a rota', 'Confirme o aceite da rota antes de iniciar ou reorganizar as entregas.');
       return;
     }
-    const hasActiveStop = openStops.some((item) => item.status === 'on_the_way' || item.status === 'arrived');
-    if (hasActiveStop) {
-      Alert.alert('Entrega em andamento', 'Finalize ou interrompa a parada atual antes de escolher outra como próxima.');
-      return;
-    }
     Alert.alert(
-      'Tornar a próxima parada?',
-      `${stop.customerName || `NF ${stop.invoiceNumber}`} será movida para o topo e marcada como “A caminho”. As outras NFs do mesmo cliente irão junto.`,
+      currentStop && clientKey(currentStop) !== clientKey(stop) ? 'Trocar a entrega atual?' : 'Tornar a próxima parada?',
+      `${stop.customerName || `NF ${stop.invoiceNumber}`} será movida para o topo e marcada como “A caminho”.${currentStop && clientKey(currentStop) !== clientKey(stop) ? ' A entrega atual voltará para “Atribuída”.' : ''} As outras NFs do mesmo cliente irão junto.`,
       [
         { text: 'Cancelar', style: 'cancel' },
         { text: 'Confirmar', onPress: () => void promoteStop(stop) },
       ],
     );
+  }
+
+  function advanceStop(stop: Stop) {
+    if (stop.status === 'pending' || stop.status === 'assigned') {
+      confirmPromotion(stop);
+    } else if (stop.status === 'on_the_way') {
+      void changeStopStatus(stop, 'arrived');
+    } else if (stop.status === 'arrived') {
+      void changeStopStatus(stop, 'delivered_pending_receipt');
+    }
+  }
+
+  async function applyLiveResult(status: DriverStopStatus | 'cancellation_request') {
+    if (!statusStop || !sessionToken || activeOperation) return;
+    const stop = statusStop;
+    setStatusStop(null);
+    if (status === 'cancellation_request') {
+      setActiveOperation(`cancel-${stop.id}`);
+      setOperationMessage('');
+      try {
+        await requestCancellationRebilling(sessionToken, stop.id, Crypto.randomUUID());
+        Alert.alert('Solicitação enviada', `A transportadora foi avisada sobre o cancelamento/refaturamento da NF ${stop.invoiceNumber}.`);
+      } catch (error) {
+        setOperationMessage(error instanceof Error ? error.message : 'Não foi possível enviar a solicitação.');
+      } finally {
+        setActiveOperation(null);
+      }
+      return;
+    }
+    await changeStopStatus(stop, status);
   }
 
   async function logout() {
@@ -395,6 +462,7 @@ export default function DriverHomeScreen() {
               onDetails={() => setDetailsStop(stop)}
               onLongPress={drag}
               longPressHint="Segure e arraste para reordenar"
+              onSwipeRight={() => advanceStop(stop)}
               primaryAction={groupIndex === 0 ? statusAction(stop) : undefined}
             />
           ))}
@@ -446,7 +514,7 @@ export default function DriverHomeScreen() {
   return (
     <SafeAreaView edges={['top']} style={styles.safeArea}>
       <EnvironmentBanner />
-      {simulationEnabled && trip ? (
+      {trip ? (
         <DraggableFlatList
           activationDistance={8}
           animationConfig={{ damping: 22, stiffness: 210, mass: 0.55 }}
@@ -456,10 +524,10 @@ export default function DriverHomeScreen() {
           data={draggableGroups}
           dragItemOverflow
           keyExtractor={(group) => group.key}
-          ListHeaderComponent={<View style={styles.listHeader}>{headerContent}{summaryContent}<View style={styles.section}><SectionTitle title="Entregas" count={openStops.length} subtitle="Segure um card e arraste para mudar a ordem" /></View></View>}
+          ListHeaderComponent={<View style={styles.listHeader}>{headerContent}{summaryContent}<View style={styles.section}><SectionTitle title="Entregas" count={openStops.length} subtitle="Segure e arraste para reordenar • arraste para a direita para avançar" /></View></View>}
           ListFooterComponent={footerContent}
           onDragBegin={setCurrentDragPosition}
-          onDragEnd={({ data }) => finishSimulatedDrag(data)}
+          onDragEnd={({ data }) => finishDrag(data)}
           onPlaceholderIndexChange={setCurrentDragPosition}
           onScroll={onScroll}
           renderItem={renderDraggableGroup}
@@ -530,17 +598,27 @@ export default function DriverHomeScreen() {
           </Pressable>
         </View>
       </ScrollView>}
-      <DeliveryDetailsModal onClose={() => setDetailsStop(null)} stop={detailsStop} />
+      <DeliveryDetailsModal
+        onClose={() => setDetailsStop(null)}
+        onOpenActions={!simulationEnabled ? (stop) => setStatusStop(stop) : undefined}
+        stop={detailsStop}
+      />
       <ActionSheet
-        actions={[
+        actions={simulationEnabled ? [
           { label: 'Pendente', onPress: () => applySimulatedStatus('pending') },
           { label: 'Entregue', onPress: () => applySimulatedStatus('delivered') },
-          { label: 'Devolvida', tone: 'danger', onPress: () => applySimulatedStatus('returned') },
+          { label: 'Devolvida', tone: 'danger' as const, onPress: () => applySimulatedStatus('returned') },
           { label: 'Reentrega', onPress: () => applySimulatedStatus('redelivery') },
           { label: 'Retida', onPress: () => applySimulatedStatus('retained') },
+        ] : [
+          ...(statusStop?.status === 'arrived' ? [{ label: 'Entregue — aguardando foto', onPress: () => void applyLiveResult('delivered_pending_receipt') }] : []),
+          { label: 'Devolução', tone: 'danger' as const, onPress: () => void applyLiveResult('returned') },
+          { label: 'Canhoto retido', onPress: () => void applyLiveResult('retained') },
+          { label: 'Reentrega', onPress: () => void applyLiveResult('redelivery') },
+          { label: 'Solicitar cancelamento/refaturamento', tone: 'danger' as const, onPress: () => void applyLiveResult('cancellation_request') },
         ]}
         onClose={() => setStatusStop(null)}
-        subtitle="Escolha um resultado para testar. Atualizar a rota descartará todas as alterações."
+        subtitle={simulationEnabled ? 'Escolha um resultado para testar. Atualizar a rota descartará todas as alterações.' : 'Escolha o resultado da visita. O cancelamento será enviado para tratamento manual da transportadora.'}
         title={statusStop ? `NF ${statusStop.invoiceNumber}` : 'Alterar status'}
         visible={Boolean(statusStop)}
       />

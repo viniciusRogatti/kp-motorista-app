@@ -199,7 +199,9 @@ export async function getAssignedTrip(token: string, driverId: number) {
   }
 }
 
-export async function updateTripStopStatus(token: string, stopId: number, status: 'on_the_way' | 'arrived' | 'delivered_pending_receipt', clientEventId: string) {
+export type DriverStopStatus = 'on_the_way' | 'arrived' | 'delivered_pending_receipt' | 'returned' | 'redelivery' | 'retained';
+
+export async function updateTripStopStatus(token: string, stopId: number, status: DriverStopStatus, clientEventId: string) {
   const response = await apiRequest<unknown>(`/driver-app/trip-stops/${stopId}/status`, {
     method: 'POST',
     token,
@@ -208,6 +210,26 @@ export async function updateTripStopStatus(token: string, stopId: number, status
   const parsed = stopStatusResponseSchema.safeParse(response);
   if (!parsed.success) throw new ApiError('O servidor não confirmou a alteração da parada.', null, 'INVALID_STOP_STATUS_RESPONSE');
   return parsed.data;
+}
+
+export async function selectNextTripStop(token: string, stopId: number, stopIds: number[], clientEventId: string) {
+  return apiRequest<{ accepted: true; stop_id: number; status: string }>(`/driver-app/trip-stops/${stopId}/select-next`, {
+    method: 'POST',
+    token,
+    body: JSON.stringify({
+      clientEventId,
+      stopIds,
+      recordedAt: new Date().toISOString(),
+    }),
+  });
+}
+
+export async function requestCancellationRebilling(token: string, stopId: number, clientEventId: string) {
+  return apiRequest<{ accepted: true; stop_id: number; status: string }>(`/driver-app/trip-stops/${stopId}/cancellation-request`, {
+    method: 'POST',
+    token,
+    body: JSON.stringify({ clientEventId, recordedAt: new Date().toISOString() }),
+  });
 }
 
 export async function acceptAssignedTrip(token: string, tripId: number, clientEventId: string) {

@@ -18,6 +18,7 @@ export function DeliveryCard({
   stop,
   prominent = false,
   onDetails,
+  onSwipeRight,
   onLongPress,
   longPressHint,
   primaryAction,
@@ -25,6 +26,7 @@ export function DeliveryCard({
   stop: Stop;
   prominent?: boolean;
   onDetails: () => void;
+  onSwipeRight?: () => void;
   onLongPress?: () => void;
   longPressHint?: string;
   primaryAction?: { label: string; loading?: boolean; disabled?: boolean; onPress: () => void };
@@ -32,21 +34,25 @@ export function DeliveryCard({
   const [translateX, setTranslateX] = useState(0);
   const theme = getCompanyTheme(stop.companyCode);
   const panResponder = useMemo(() => PanResponder.create({
-    onMoveShouldSetPanResponder: (_, gesture) => gesture.dx < -8 && Math.abs(gesture.dx) > Math.abs(gesture.dy),
-    onPanResponderMove: (_, gesture) => setTranslateX(Math.max(-80, Math.min(0, gesture.dx))),
+    onMoveShouldSetPanResponder: (_, gesture) => Math.abs(gesture.dx) > 8 && Math.abs(gesture.dx) > Math.abs(gesture.dy),
+    onPanResponderMove: (_, gesture) => setTranslateX(Math.max(-80, Math.min(onSwipeRight ? 80 : 0, gesture.dx))),
     onPanResponderRelease: (_, gesture) => {
       if (gesture.dx < -55) onDetails();
+      if (gesture.dx > 55) onSwipeRight?.();
       setTranslateX(0);
     },
     onPanResponderTerminate: () => setTranslateX(0),
-  }), [onDetails]);
+  }), [onDetails, onSwipeRight]);
 
   return (
     <View style={styles.swipeFrame}>
-      <View style={styles.reveal}><Text style={styles.revealText}>Detalhes</Text><Text style={styles.revealArrow}>←</Text></View>
+      <View style={styles.reveal}>
+        {onSwipeRight ? <View style={styles.rightReveal}><Text style={styles.revealArrow}>→</Text><Text style={styles.revealText}>Avançar</Text></View> : null}
+        <View style={styles.leftReveal}><Text style={styles.revealText}>Detalhes</Text><Text style={styles.revealArrow}>←</Text></View>
+      </View>
       <View style={{ transform: [{ translateX }] }} {...panResponder.panHandlers}>
         <Pressable
-          accessibilityHint="Arraste para a esquerda para ver os detalhes"
+          accessibilityHint={onSwipeRight ? 'Arraste para a direita para avançar ou para a esquerda para ver detalhes' : 'Arraste para a esquerda para ver os detalhes'}
           accessibilityRole="button"
           delayLongPress={350}
           onLongPress={onLongPress}
@@ -65,7 +71,7 @@ export function DeliveryCard({
           </View>
           <Text numberOfLines={2} style={styles.customer}>{stop.customerName || `NF ${stop.invoiceNumber}`}</Text>
           <Text style={styles.location}>{stop.city || 'Cidade não informada'} • NF {stop.invoiceNumber}</Text>
-          <Text style={styles.hint}>{onLongPress ? `${longPressHint || 'Segure para opções'}  ·  ` : ''}← detalhes</Text>
+          <Text style={styles.hint}>{onLongPress ? `${longPressHint || 'Segure para opções'}  ·  ` : ''}{onSwipeRight ? 'avançar →  ·  ' : ''}← detalhes</Text>
         </Pressable>
         {primaryAction ? (
           <Pressable
@@ -86,7 +92,9 @@ export function DeliveryCard({
 
 const styles = StyleSheet.create({
   swipeFrame: { borderRadius: 18, overflow: 'hidden', backgroundColor: '#173B67' },
-  reveal: { position: 'absolute', inset: 0, alignItems: 'flex-end', justifyContent: 'center', paddingRight: 18 },
+  reveal: { position: 'absolute', inset: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 18 },
+  rightReveal: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  leftReveal: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   revealText: { color: '#FFFFFF', fontSize: 11, fontWeight: '800' },
   revealArrow: { color: '#AFC9E9', fontSize: 18, marginTop: 2 },
   card: { borderWidth: 1, borderRadius: 18, padding: 15, minHeight: 118 },
