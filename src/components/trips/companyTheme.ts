@@ -11,5 +11,8 @@ export function getCompanyTheme(code?: string | null): CompanyTheme {
   if (normalized.includes('mar') || normalized.includes('rio')) {
     return { background: '#EAF3FC', border: '#B9D3ED', accent: '#225E91', label: 'MAR E RIO' };
   }
+  if (normalized.includes('bacio') || normalized.includes('latte') || normalized.includes('milano')) {
+    return { background: '#FFF4E8', border: '#E8C9A5', accent: '#8A4F2A', label: 'BACIO DI LATTE' };
+  }
   return { background: '#EDF5F2', border: '#C4DCD4', accent: '#326B5D', label: code?.toUpperCase() || 'ENTREGA' };
 }
