@@ -19,6 +19,7 @@
     },
     "preview": {
       "distribution": "internal",
+      "environment": "preview",
       "env": {
         "APP_ENV": "preview",
         "EXPO_PUBLIC_API_URL": "https://kptransportes-backend.up.railway.app",

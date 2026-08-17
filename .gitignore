@@ -38,6 +38,7 @@ google-services.json
 *.jks
 *.keystore
 credentials.json
+**/adi-registration.properties
 
 # CNG: diretorios nativos sao gerados sob demanda
 /android

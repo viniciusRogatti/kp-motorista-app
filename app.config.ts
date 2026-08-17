@@ -93,6 +93,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
       ],
     },
     plugins: [
+      './plugins/withAndroidDeveloperVerificationToken',
       'expo-router',
       'expo-sqlite',
       ['expo-secure-store', { configureAndroidBackup: true }],
