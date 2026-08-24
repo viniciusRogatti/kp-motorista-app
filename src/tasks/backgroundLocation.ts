@@ -116,7 +116,7 @@ export async function startTripTracking(tripId: number, token: string, stopAt: s
     throw new Error('Permita a localizacao o tempo todo para manter o rastreamento com a tela bloqueada.');
   }
 
-  const config = await getDriverTrackingConfig(token).catch(() => ({ location_update_interval_ms: 300_000 }));
+  const config = await getDriverTrackingConfig(token).catch(() => ({ location_update_interval_ms: 60_000 }));
   const updateInterval = Math.max(60_000, config.location_update_interval_ms);
   const currentTracking = await readActiveTripTracking();
   if (await isBackgroundTrackingActive()) {
@@ -130,9 +130,9 @@ export async function startTripTracking(tripId: number, token: string, stopAt: s
   await writeActiveTripTracking(tripId, stopAt);
   try {
     await Location.startLocationUpdatesAsync(BACKGROUND_LOCATION_TASK, {
-      accuracy: Location.Accuracy.High,
+      accuracy: Location.Accuracy.BestForNavigation,
       timeInterval: updateInterval,
-      distanceInterval: 50,
+      distanceInterval: 25,
       pausesUpdatesAutomatically: false,
       foregroundService: {
         notificationTitle: 'ASTRO — localizacao ativa',
@@ -146,7 +146,7 @@ export async function startTripTracking(tripId: number, token: string, stopAt: s
   }
 
   try {
-    const currentLocation = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+    const currentLocation = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.BestForNavigation });
     await persistLocations([currentLocation]);
   } catch {
     // O servico ja esta ativo; a proxima leitura sera persistida e sincronizada pela tarefa.

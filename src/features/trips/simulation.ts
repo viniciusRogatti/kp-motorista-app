@@ -7,7 +7,7 @@ export type MoveDirection = 'top' | 'up' | 'down';
 const finalStatuses = new Set<SimulatedStatus>(['delivered_pending_receipt', 'delivered', 'returned', 'redelivery', 'retained']);
 
 function clientKey(stop: Stop) {
-  return stop.customerId || stop.customerName.trim().toLocaleLowerCase('pt-BR') || `stop-${stop.id}`;
+  return stop.customerName.trim().toLocaleLowerCase('pt-BR') || stop.customerId || `stop-${stop.id}`;
 }
 
 function withSummary(trip: AssignedTrip, stops: Stop[]): AssignedTrip {
@@ -65,7 +65,7 @@ export function moveSimulatedClient(trip: AssignedTrip, stopId: number, directio
   return withSummary(trip, [...groups.flatMap((group) => group.items), ...finishedStops]);
 }
 
-export function reorderSimulatedClients(trip: AssignedTrip, orderedStopIds: number[]) {
+export function reorderSimulatedClients(trip: AssignedTrip, orderedStopIds: number[], activateFirst = false) {
   const openStops = trip.stops.filter((stop) => !finalStatuses.has(stop.status as SimulatedStatus));
   const finishedStops = trip.stops.filter((stop) => finalStatuses.has(stop.status as SimulatedStatus));
   const openById = new Map(openStops.map((stop) => [stop.id, stop]));
@@ -74,16 +74,13 @@ export function reorderSimulatedClients(trip: AssignedTrip, orderedStopIds: numb
   if (uniqueIds.length !== openStops.length || uniqueIds.some((id) => !openById.has(id))) return trip;
 
   const reorderedOpen = uniqueIds.map((id) => openById.get(id)!);
-  const previousFirstKey = openStops[0] ? clientKey(openStops[0]) : null;
   const nextFirstKey = reorderedOpen[0] ? clientKey(reorderedOpen[0]) : null;
 
-  if (nextFirstKey && nextFirstKey !== previousFirstKey) {
-    let activatedFirst = false;
+  if (activateFirst && nextFirstKey) {
     for (let index = 0; index < reorderedOpen.length; index += 1) {
       const stop = reorderedOpen[index];
-      if (clientKey(stop) === nextFirstKey && !activatedFirst) {
+      if (clientKey(stop) === nextFirstKey) {
         reorderedOpen[index] = { ...stop, status: 'on_the_way' };
-        activatedFirst = true;
       } else if (stop.status === 'on_the_way' || stop.status === 'arrived') {
         reorderedOpen[index] = { ...stop, status: 'pending' };
       }

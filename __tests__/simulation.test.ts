@@ -48,7 +48,7 @@ describe('simulação local da rota', () => {
 
   it('reordena os blocos arrastados e ativa a nova primeira entrega', () => {
     const simulated = createSimulationTrip(trip)!;
-    const changed = reorderSimulatedClients(simulated, [2, 1, 3, 4]);
+    const changed = reorderSimulatedClients(simulated, [2, 1, 3, 4], true);
 
     expect(changed.stops.map((item) => item.id)).toEqual([2, 1, 3, 4]);
     expect(changed.stops.map((item) => item.status)).toEqual(['on_the_way', 'pending', 'pending', 'pending']);

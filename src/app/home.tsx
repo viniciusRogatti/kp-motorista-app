@@ -56,6 +56,7 @@ type LoadState = 'loading' | 'ready' | 'refreshing' | 'offline';
 
 const finalStatuses = new Set(['delivered', 'returned', 'cancelled', 'completed', 'redelivery', 'retained']);
 const operationalFinalStatuses = new Set([...finalStatuses, 'delivered_pending_receipt']);
+const isActiveStopStatus = (status: string) => status === 'on_the_way' || status === 'arrived';
 
 function formatTripDate(value: string) {
   const match = value.slice(0, 10).match(/^(\d{4})[-/](\d{2})[-/](\d{2})$/);
@@ -63,7 +64,7 @@ function formatTripDate(value: string) {
 }
 
 function clientKey(stop: Stop) {
-  return stop.customerId || stop.customerName.trim().toLocaleLowerCase('pt-BR');
+  return stop.customerName.trim().toLocaleLowerCase('pt-BR') || stop.customerId || `stop-${stop.id}`;
 }
 
 function groupStopsByClient(stops: Stop[]): StopGroup[] {
@@ -94,7 +95,7 @@ function setCurrentDragPosition(index: number) {
 }
 
 function dragPositionLabel(index: number) {
-  return index === 0 ? 'TOPO  •  ENTREGA ATUAL' : `POSIÇÃO ${index + 1}`;
+  return index === 0 ? 'SOLTE NA ENTREGA ATIVA' : `POSIÇÃO ${index + 1}`;
 }
 
 function DragPositionBadge() {
@@ -186,12 +187,11 @@ export default function DriverHomeScreen() {
   const finishedStops = trip?.stops.filter((stop) => finalStatuses.has(stop.status)) ?? [];
   const currentStop = openStops.find((stop) => stop.status === 'arrived')
     || openStops.find((stop) => stop.status === 'on_the_way')
-    || openStops[0]
     || null;
   const currentStops = currentStop ? openStops.filter((stop) => clientKey(stop) === clientKey(currentStop)) : [];
   const currentIds = new Set(currentStops.map((stop) => stop.id));
   const nextStops = openStops.filter((stop) => !currentIds.has(stop.id));
-  const draggableGroups = groupStopsByClient(openStops);
+  const draggableGroups = trip?.tracking.acceptedAt || simulationEnabled ? groupStopsByClient(nextStops) : [];
   const cities = Array.from(new Set((trip?.stops ?? []).map((stop) => stop.city.trim()).filter(Boolean)));
   const completionProgress = trip?.summary.totalStops
     ? Math.min(100, Math.max(0, (trip.summary.completedStops / trip.summary.totalStops) * 100))
@@ -203,9 +203,13 @@ export default function DriverHomeScreen() {
     setTrackingMessage('');
     try {
       await acceptAssignedTrip(sessionToken, trip.id, Crypto.randomUUID());
-      await startTripTracking(trip.id, sessionToken, trip.tracking.stopAt);
-      setTrackingActive(true);
       await refreshTrip(false);
+      try {
+        await startTripTracking(trip.id, sessionToken, trip.tracking.stopAt);
+        setTrackingActive(true);
+      } catch (error) {
+        setTrackingMessage(error instanceof Error ? error.message : 'Nao foi possivel iniciar o rastreamento.');
+      }
     } catch (error) {
       setTrackingMessage(error instanceof Error ? error.message : 'Nao foi possivel aceitar a rota.');
     } finally {
@@ -271,22 +275,31 @@ export default function DriverHomeScreen() {
     setStatusStop(null);
   }
 
-  function finishSimulatedDrag(groups: StopGroup[]) {
-    const orderedStopIds = groups.flatMap((group) => group.stops.map((stop) => stop.id));
-    setTrip((current) => current ? reorderSimulatedClients(current, orderedStopIds) : current);
+  function finishSimulatedDrag(groups: StopGroup[], activateFirst = false) {
+    const queuedIds = groups.flatMap((group) => group.stops.map((stop) => stop.id));
+    const selectedIds = activateFirst && groups[0] ? new Set(groups[0].stops.map((stop) => stop.id)) : new Set<number>();
+    const orderedStopIds = activateFirst
+      ? [...(groups[0]?.stops.map((stop) => stop.id) ?? []), ...currentStops.filter((stop) => !selectedIds.has(stop.id)).map((stop) => stop.id), ...queuedIds.filter((id) => !selectedIds.has(id))]
+      : [...currentStops.map((stop) => stop.id), ...queuedIds];
+    setTrip((current) => current ? reorderSimulatedClients(current, orderedStopIds, activateFirst) : current);
   }
 
-  async function finishLiveDrag(groups: StopGroup[]) {
+  async function finishLiveDrag(groups: StopGroup[], activateFirst = false) {
     if (!sessionToken || !trip || !groups.length || activeOperation) return;
     if (!operationsEnabled || !trip.tracking.acceptedAt) {
       Alert.alert('Aceite a rota', 'Confirme o aceite da rota antes de reorganizar as entregas.');
       return;
     }
-    const orderedOpenIds = groups.flatMap((group) => group.stops.map((stop) => stop.id));
+    const queuedIds = groups.flatMap((group) => group.stops.map((stop) => stop.id));
+    const selectedIds = activateFirst && groups[0] ? new Set(groups[0].stops.map((stop) => stop.id)) : new Set<number>();
+    const currentAfterSelection = activateFirst ? currentStops.filter((stop) => !selectedIds.has(stop.id)) : currentStops;
+    const orderedOpenIds = activateFirst
+      ? [...(groups[0]?.stops.map((stop) => stop.id) ?? []), ...currentAfterSelection.map((stop) => stop.id), ...queuedIds.filter((id) => !selectedIds.has(id))]
+      : [...currentStops.map((stop) => stop.id), ...queuedIds];
     const openIdSet = new Set(orderedOpenIds);
     const orderedStopIds = [...orderedOpenIds, ...trip.stops.filter((stop) => !openIdSet.has(stop.id)).map((stop) => stop.id)];
     const firstStop = groups[0].stops[0];
-    const firstClientChanged = !currentStop || clientKey(firstStop) !== clientKey(currentStop);
+    const firstClientChanged = activateFirst && (!currentStop || clientKey(firstStop) !== clientKey(currentStop));
 
     setActiveOperation(`reorder-${firstStop.id}`);
     setOperationMessage('');
@@ -305,12 +318,12 @@ export default function DriverHomeScreen() {
     }
   }
 
-  function finishDrag(groups: StopGroup[]) {
+  function finishDrag(groups: StopGroup[], activateFirst = false) {
     if (simulationEnabled) {
-      finishSimulatedDrag(groups);
+      finishSimulatedDrag(groups, activateFirst);
       return;
     }
-    void finishLiveDrag(groups);
+    void finishLiveDrag(groups, activateFirst);
   }
 
   async function promoteStop(stop: Stop) {
@@ -419,16 +432,17 @@ export default function DriverHomeScreen() {
         <View style={[styles.progressFill, { width: `${completionProgress}%` }]} />
       </View>
       <Text numberOfLines={1} style={styles.citiesText}>{cities.length ? cities.join('  •  ') : 'Cidades não informadas'}</Text>
-      {!simulationEnabled ? (
+      {!simulationEnabled && !trip.tracking.acceptedAt ? (
+        <Pressable disabled={acceptingRoute} onPress={() => void acceptRoute()} style={styles.acceptRouteButton}>
+          {acceptingRoute ? <ActivityIndicator color="#FFFFFF" size="small" /> : <Text style={styles.acceptRouteButtonText}>ACEITAR VIAGEM</Text>}
+        </Pressable>
+      ) : !simulationEnabled ? (
         <View style={styles.trackingRow}>
           <View style={[styles.trackingDot, trip.tracking.acceptedAt && trackingActive && styles.trackingDotActive]} />
           <View style={styles.trackingCopy}>
-            <Text style={styles.trackingTitle}>{trip.tracking.acceptedAt ? 'Rota aceita — localizacao automatica' : 'Rota aguardando aceite'}</Text>
-            <Text style={styles.trackingHint}>{trip.tracking.acceptedAt ? 'O compartilhamento encerra no logout ou uma hora apos a rota.' : 'Ao aceitar, o rastreamento sera iniciado automaticamente.'}</Text>
+            <Text style={styles.trackingTitle}>Viagem em andamento</Text>
           </View>
-          {!trip.tracking.acceptedAt ? <Pressable disabled={acceptingRoute} onPress={() => void acceptRoute()} style={styles.trackingButton}>
-            {acceptingRoute ? <ActivityIndicator color="#1555A0" size="small" /> : <Text style={styles.trackingButtonText}>Aceitar rota</Text>}
-          </Pressable> : <Text style={styles.trackingLocked}>Obrigatorio</Text>}
+          <Text style={styles.trackingLocked}>GPS ativo</Text>
         </View>
       ) : null}
       {trackingMessage ? <Text style={styles.trackingError}>{trackingMessage}</Text> : null}
@@ -447,29 +461,49 @@ export default function DriverHomeScreen() {
               </View>
             ) : (
               <>
-                <Text style={[styles.dragLabel, groupIndex === 0 && styles.dragLabelCurrent]}>
-                  {groupIndex === 0 ? 'AGORA' : `PARADA ${groupIndex + 1}`}
-                </Text>
-                <Text style={styles.dragHandle}>≡  segure e arraste</Text>
+                <Text style={styles.dragLabel}>PARADA {groupIndex + 1}</Text>
+                <Text style={styles.dragHandle}>≡</Text>
               </>
             )}
           </View>
-          {item.stops.map((stop, stopIndex) => (
+          {item.stops.map((stop) => (
             <DeliveryCard
               key={stop.id}
               stop={stop}
-              prominent={groupIndex === 0 && stopIndex === 0}
+              prominent={false}
               onDetails={() => setDetailsStop(stop)}
               onLongPress={drag}
-              longPressHint="Segure e arraste para reordenar"
-              onSwipeRight={() => advanceStop(stop)}
-              primaryAction={groupIndex === 0 ? statusAction(stop) : undefined}
+              longPressHint={undefined}
             />
           ))}
         </View>
       </ScaleDecorator>
     );
   }
+
+  const activeDeliveryContent = trip?.tracking.acceptedAt || simulationEnabled ? (
+    <View style={styles.activeZone}>
+      <View style={styles.activeZoneHeader}>
+        <Text style={styles.activeZoneTitle}>ENTREGA ATIVA</Text>
+        {currentStops.length ? <Text style={styles.activeZoneStatus}>{currentStop?.status === 'arrived' ? 'NO LOCAL' : 'A CAMINHO'}</Text> : null}
+      </View>
+      {currentStops.length ? currentStops.map((stop, index) => (
+        <DeliveryCard
+          key={stop.id}
+          stop={stop}
+          prominent={index === 0}
+          onDetails={() => setDetailsStop(stop)}
+          onSwipeRight={() => advanceStop(stop)}
+          primaryAction={isActiveStopStatus(stop.status) ? statusAction(stop) : undefined}
+        />
+      )) : (
+        <View style={styles.activeZoneEmpty}>
+          <Text style={styles.activeZoneEmptyIcon}>↓</Text>
+          <Text style={styles.activeZoneEmptyText}>ARRASTE A PRÓXIMA ENTREGA</Text>
+        </View>
+      )}
+    </View>
+  ) : null;
 
   const finishedContent = finishedStops.length ? (
     <View style={styles.section}>
@@ -524,10 +558,10 @@ export default function DriverHomeScreen() {
           data={draggableGroups}
           dragItemOverflow
           keyExtractor={(group) => group.key}
-          ListHeaderComponent={<View style={styles.listHeader}>{headerContent}{summaryContent}<View style={styles.section}><SectionTitle title="Entregas" count={openStops.length} subtitle="Segure e arraste para reordenar • arraste para a direita para avançar" /></View></View>}
+          ListHeaderComponent={<View style={styles.listHeader}>{headerContent}{summaryContent}{activeDeliveryContent}{trip.tracking.acceptedAt || simulationEnabled ? <View style={styles.section}><SectionTitle title="Próximas entregas" count={nextStops.length} /></View> : null}</View>}
           ListFooterComponent={footerContent}
           onDragBegin={setCurrentDragPosition}
-          onDragEnd={({ data }) => finishDrag(data)}
+          onDragEnd={({ data, to }) => finishDrag(data, to === 0)}
           onPlaceholderIndexChange={setCurrentDragPosition}
           onScroll={onScroll}
           renderItem={renderDraggableGroup}
@@ -600,7 +634,7 @@ export default function DriverHomeScreen() {
       </ScrollView>}
       <DeliveryDetailsModal
         onClose={() => setDetailsStop(null)}
-        onOpenActions={!simulationEnabled ? (stop) => setStatusStop(stop) : undefined}
+        onOpenActions={!simulationEnabled && detailsStop && currentIds.has(detailsStop.id) && isActiveStopStatus(detailsStop.status) ? (stop) => setStatusStop(stop) : undefined}
         stop={detailsStop}
       />
       <ActionSheet
@@ -657,6 +691,8 @@ const styles = StyleSheet.create({
   trackingCopy: { flex: 1 },
   trackingTitle: { color: '#24334A', fontSize: 10, fontWeight: '900' },
   trackingHint: { color: '#748196', fontSize: 9, marginTop: 1 },
+  acceptRouteButton: { minHeight: 58, marginTop: 5, borderRadius: 15, backgroundColor: '#1268E8', alignItems: 'center', justifyContent: 'center', shadowColor: '#1268E8', shadowOpacity: 0.28, shadowRadius: 9, shadowOffset: { width: 0, height: 5 }, elevation: 5 },
+  acceptRouteButtonText: { color: '#FFFFFF', fontSize: 16, fontWeight: '900', letterSpacing: 0.6 },
   trackingButton: { minWidth: 61, height: 30, borderRadius: 9, backgroundColor: '#E9F1FC', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 9 },
   trackingButtonStop: { backgroundColor: '#FCECEC' },
   trackingButtonText: { color: '#1555A0', fontSize: 10, fontWeight: '900' },
@@ -666,6 +702,13 @@ const styles = StyleSheet.create({
   pendingReceiptButton: { minHeight: 42, borderRadius: 13, backgroundColor: '#EAF8F0', borderWidth: 1, borderColor: '#A7DFC0', alignItems: 'center', justifyContent: 'center' },
   pendingReceiptButtonText: { color: '#17643D', fontSize: 12, fontWeight: '900' },
   section: { marginHorizontal: 18, gap: 10 },
+  activeZone: { marginHorizontal: 18, gap: 9, padding: 12, borderRadius: 22, backgroundColor: '#DCEBFF', borderWidth: 2, borderColor: '#1268E8' },
+  activeZoneHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 3 },
+  activeZoneTitle: { color: '#0E4D9A', fontSize: 12, fontWeight: '900', letterSpacing: 1.1 },
+  activeZoneStatus: { color: '#FFFFFF', backgroundColor: '#1268E8', borderRadius: 10, paddingHorizontal: 9, paddingVertical: 5, fontSize: 9, fontWeight: '900' },
+  activeZoneEmpty: { minHeight: 104, borderRadius: 17, borderWidth: 2, borderStyle: 'dashed', borderColor: '#78A9E8', backgroundColor: '#F5F9FF', alignItems: 'center', justifyContent: 'center', gap: 5 },
+  activeZoneEmptyIcon: { color: '#1268E8', fontSize: 24, fontWeight: '900' },
+  activeZoneEmptyText: { color: '#1555A0', fontSize: 11, fontWeight: '900', letterSpacing: 0.7 },
   sectionHeading: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 4 },
   sectionTitle: { color: '#17243A', fontSize: 18, fontWeight: '900' },
   sectionSubtitle: { color: '#7C899A', fontSize: 10, marginTop: 2 },

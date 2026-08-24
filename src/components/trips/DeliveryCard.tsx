@@ -71,7 +71,7 @@ export function DeliveryCard({
           </View>
           <Text numberOfLines={2} style={styles.customer}>{stop.customerName || `NF ${stop.invoiceNumber}`}</Text>
           <Text style={styles.location}>{stop.city || 'Cidade não informada'} • NF {stop.invoiceNumber}</Text>
-          <Text style={styles.hint}>{onLongPress ? `${longPressHint || 'Segure para opções'}  ·  ` : ''}{onSwipeRight ? 'avançar →  ·  ' : ''}← detalhes</Text>
+          {longPressHint ? <Text style={styles.hint}>{longPressHint}</Text> : null}
         </Pressable>
         {primaryAction ? (
           <Pressable

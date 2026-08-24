@@ -68,7 +68,7 @@ const reorderResponseSchema = z.object({
 }).passthrough();
 const trackingConfigSchema = z.object({
   config: z.object({
-    location_update_interval_ms: z.coerce.number().int().positive().default(300_000),
+    location_update_interval_ms: z.coerce.number().int().positive().default(60_000),
   }),
 }).passthrough();
 const locationResponseSchema = z.object({ accepted: z.literal(true) }).passthrough();
