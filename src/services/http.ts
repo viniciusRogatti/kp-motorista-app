@@ -35,6 +35,7 @@ export async function apiRequest<T>(
   const { token, timeoutMs = 10_000, headers, ...requestOptions } = options;
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  const isFormData = typeof FormData !== 'undefined' && requestOptions.body instanceof FormData;
 
   try {
     const response = await fetch(apiUrl(path), {
@@ -42,7 +43,7 @@ export async function apiRequest<T>(
       signal: controller.signal,
       headers: {
         Accept: 'application/json',
-        ...(requestOptions.body ? { 'Content-Type': 'application/json' } : {}),
+        ...(requestOptions.body && !isFormData ? { 'Content-Type': 'application/json' } : {}),
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
         ...headers,
       },

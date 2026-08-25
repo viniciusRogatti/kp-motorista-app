@@ -1,5 +1,5 @@
 import * as Crypto from 'expo-crypto';
-import { Redirect, Link, useFocusEffect } from 'expo-router';
+import { Redirect, Link, useFocusEffect, useRouter } from 'expo-router';
 import { useSQLiteContext } from 'expo-sqlite';
 import { useCallback, useEffect, useState, useSyncExternalStore } from 'react';
 import {
@@ -37,7 +37,6 @@ import {
   acceptAssignedTrip,
   getAssignedTrip,
   reorderTripStops,
-  requestCancellationRebilling,
   selectNextTripStop,
   updateTripStopStatus,
   type DriverStopStatus,
@@ -110,6 +109,7 @@ function DragPositionBadge() {
 }
 
 export default function DriverHomeScreen() {
+  const router = useRouter();
   const db = useSQLiteContext();
   const { session, isLoading, signOut } = useAuth();
   const [trip, setTrip] = useState<AssignedTrip | null>(null);
@@ -376,24 +376,18 @@ export default function DriverHomeScreen() {
     }
   }
 
-  async function applyLiveResult(status: DriverStopStatus | 'cancellation_request') {
+  async function applyLiveResult(status: DriverStopStatus) {
     if (!statusStop || !sessionToken || activeOperation) return;
     const stop = statusStop;
     setStatusStop(null);
-    if (status === 'cancellation_request') {
-      setActiveOperation(`cancel-${stop.id}`);
-      setOperationMessage('');
-      try {
-        await requestCancellationRebilling(sessionToken, stop.id, Crypto.randomUUID());
-        Alert.alert('Solicitação enviada', `A transportadora foi avisada sobre o cancelamento/refaturamento da NF ${stop.invoiceNumber}.`);
-      } catch (error) {
-        setOperationMessage(error instanceof Error ? error.message : 'Não foi possível enviar a solicitação.');
-      } finally {
-        setActiveOperation(null);
-      }
-      return;
-    }
     await changeStopStatus(stop, status);
+  }
+
+  function openOccurrence(occurrenceType: 'redelivery' | 'return' | 'missing_product' | 'cancellation') {
+    if (!statusStop) return;
+    const stopId = statusStop.id;
+    setStatusStop(null);
+    router.push({ pathname: '/occurrence', params: { stopId: String(stopId), occurrenceType } } as never);
   }
 
   async function logout() {
@@ -646,13 +640,13 @@ export default function DriverHomeScreen() {
           { label: 'Retida', onPress: () => applySimulatedStatus('retained') },
         ] : [
           ...(statusStop?.status === 'arrived' ? [{ label: 'Entregue — aguardando foto', onPress: () => void applyLiveResult('delivered_pending_receipt') }] : []),
-          { label: 'Devolução', tone: 'danger' as const, onPress: () => void applyLiveResult('returned') },
-          { label: 'Canhoto retido', onPress: () => void applyLiveResult('retained') },
-          { label: 'Reentrega', onPress: () => void applyLiveResult('redelivery') },
-          { label: 'Solicitar cancelamento/refaturamento', tone: 'danger' as const, onPress: () => void applyLiveResult('cancellation_request') },
+          { label: 'Devolução', tone: 'danger' as const, onPress: () => openOccurrence('return') },
+          { label: 'Produto faltante', onPress: () => openOccurrence('missing_product') },
+          { label: 'Reentrega', onPress: () => openOccurrence('redelivery') },
+          { label: 'Solicitar cancelamento/refaturamento', tone: 'danger' as const, onPress: () => openOccurrence('cancellation') },
         ]}
         onClose={() => setStatusStop(null)}
-        subtitle={simulationEnabled ? 'Escolha um resultado para testar. Atualizar a rota descartará todas as alterações.' : 'Escolha o resultado da visita. O cancelamento será enviado para tratamento manual da transportadora.'}
+        subtitle={simulationEnabled ? 'Escolha um resultado para testar. Atualizar a rota descartará todas as alterações.' : 'O app prepara a mensagem e a foto; no WhatsApp você escolhe o grupo e confirma o envio.'}
         title={statusStop ? `NF ${statusStop.invoiceNumber}` : 'Alterar status'}
         visible={Boolean(statusStop)}
       />

@@ -1,4 +1,4 @@
-import { Redirect, useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { Redirect, router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { ActivityIndicator, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -60,6 +60,19 @@ export default function PendingReceiptsScreen() {
                 <Text style={styles.invoice}>NF {item.invoiceNumber}</Text>
                 <Text style={styles.customer}>{item.customerName || 'Cliente nao informado'}</Text>
                 <Text style={styles.company}>{item.companyName || item.companyCode || 'Empresa'}</Text>
+                <Pressable
+                  onPress={() => router.push({
+                    pathname: '/receipt-capture',
+                    params: {
+                      invoiceNumber: item.invoiceNumber,
+                      customerName: item.customerName,
+                      groupName: item.receiptGroupName,
+                    },
+                  } as never)}
+                  style={styles.photoButton}
+                >
+                  <Text style={styles.photoButtonText}>Fotografar e abrir WhatsApp</Text>
+                </Pressable>
               </View>
             ))}
           </View>
@@ -87,6 +100,8 @@ const styles = StyleSheet.create({
   invoice: { color: '#17643D', fontSize: 15, fontWeight: '900' },
   customer: { color: '#25344A', fontSize: 13, fontWeight: '700', marginTop: 2 },
   company: { color: '#7B8798', fontSize: 10, marginTop: 2 },
+  photoButton: { minHeight: 42, borderRadius: 12, backgroundColor: '#1268E8', alignItems: 'center', justifyContent: 'center', marginTop: 10 },
+  photoButtonText: { color: '#FFFFFF', fontSize: 12, fontWeight: '900' },
   empty: { alignItems: 'center', backgroundColor: '#FFFFFF', borderRadius: 18, padding: 24 },
   emptyTitle: { color: '#17643D', fontSize: 20, fontWeight: '900' },
   error: { backgroundColor: '#FFF0F0', borderRadius: 14, padding: 14 },
