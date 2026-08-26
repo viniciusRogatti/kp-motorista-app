@@ -28,6 +28,8 @@ O APK precisa ter sido criado depois da instalação do `expo-updates` e deve ap
 npm run update:preview -- --message "fix: descrição da atualização"
 ```
 
+Os scripts limitam a exportação ao Android. Não remova `--platform android`: a exportação web não faz parte deste app e pode exigir módulos WASM adicionais do `expo-sqlite`.
+
 O app verifica atualizações ao iniciar, baixa em segundo plano e aplica a versão baixada na próxima inicialização. Pode distribuir mudanças de JS/TS, estilos e assets que sejam compatíveis com a mesma runtime nativa. Exigem novo APK/AAB: biblioteca nativa, permissão, config plugin, Manifest, Kotlin, Firebase, package name, SDK Expo ou qualquer alteração de contrato nativo. Nunca publique OTA automaticamente.
 
 O primeiro APK com suporte ao EAS Update ainda precisa ser enviado e instalado manualmente. Builds anteriores não passam a aceitar OTA retroativamente.
