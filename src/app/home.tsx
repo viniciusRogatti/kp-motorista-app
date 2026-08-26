@@ -41,11 +41,7 @@ import {
   updateTripStopStatus,
   type DriverStopStatus,
 } from '@/services/trips';
-import {
-  isBackgroundTrackingActive,
-  startTripTracking,
-} from '@/tasks/backgroundLocation';
-import { readActiveTripTracking } from '@/tasks/tripTrackingState';
+import { startTripTracking } from '@/tasks/backgroundLocation';
 import { scheduleRouteEndReminder } from '@/services/mobileNotifications';
 import type { AssignedTrip } from '@/types/trip';
 
@@ -54,13 +50,9 @@ type StopGroup = { key: string; stops: Stop[] };
 type LoadState = 'loading' | 'ready' | 'refreshing' | 'offline';
 
 const finalStatuses = new Set(['delivered', 'returned', 'cancelled', 'completed', 'redelivery', 'retained']);
+const completedDeliveryStatuses = new Set(['delivered', 'completed']);
 const operationalFinalStatuses = new Set([...finalStatuses, 'delivered_pending_receipt']);
 const isActiveStopStatus = (status: string) => status === 'on_the_way' || status === 'arrived';
-
-function formatTripDate(value: string) {
-  const match = value.slice(0, 10).match(/^(\d{4})[-/](\d{2})[-/](\d{2})$/);
-  return match ? `${match[3]}/${match[2]}/${match[1]}` : value;
-}
 
 function clientKey(stop: Stop) {
   return stop.customerName.trim().toLocaleLowerCase('pt-BR') || stop.customerId || `stop-${stop.id}`;
@@ -121,7 +113,6 @@ export default function DriverHomeScreen() {
   const [activeOperation, setActiveOperation] = useState<string | null>(null);
   const [operationMessage, setOperationMessage] = useState('');
   const [statusStop, setStatusStop] = useState<Stop | null>(null);
-  const [trackingActive, setTrackingActive] = useState(false);
   const [acceptingRoute, setAcceptingRoute] = useState(false);
   const [trackingMessage, setTrackingMessage] = useState('');
   const sessionToken = session?.token;
@@ -161,18 +152,9 @@ export default function DriverHomeScreen() {
     };
   }, [db, refreshTrip, simulationEnabled]));
 
-  useFocusEffect(useCallback(() => {
-    let active = true;
-    void Promise.all([isBackgroundTrackingActive(), readActiveTripTracking()]).then(([started, tracking]) => {
-      if (active) setTrackingActive(started && Boolean(tracking));
-    });
-    return () => { active = false; };
-  }, []));
-
   useEffect(() => {
     if (!trip?.tracking.acceptedAt || !sessionToken) return;
     void startTripTracking(trip.id, sessionToken, trip.tracking.stopAt)
-      .then(() => setTrackingActive(true))
       .catch((error) => setTrackingMessage(error instanceof Error ? error.message : 'Nao foi possivel iniciar o rastreamento.'));
   }, [sessionToken, trip?.id, trip?.tracking.acceptedAt, trip?.tracking.stopAt]);
 
@@ -185,6 +167,8 @@ export default function DriverHomeScreen() {
   const openStops = trip?.stops.filter((stop) => !operationalFinalStatuses.has(stop.status)) ?? [];
   const pendingReceiptStops = trip?.stops.filter((stop) => stop.status === 'delivered_pending_receipt') ?? [];
   const finishedStops = trip?.stops.filter((stop) => finalStatuses.has(stop.status)) ?? [];
+  const completedDeliveryStops = finishedStops.filter((stop) => completedDeliveryStatuses.has(stop.status));
+  const exceptionStops = finishedStops.filter((stop) => !completedDeliveryStatuses.has(stop.status));
   const currentStop = openStops.find((stop) => stop.status === 'arrived')
     || openStops.find((stop) => stop.status === 'on_the_way')
     || null;
@@ -192,11 +176,6 @@ export default function DriverHomeScreen() {
   const currentIds = new Set(currentStops.map((stop) => stop.id));
   const nextStops = openStops.filter((stop) => !currentIds.has(stop.id));
   const draggableGroups = trip?.tracking.acceptedAt || simulationEnabled ? groupStopsByClient(nextStops) : [];
-  const cities = Array.from(new Set((trip?.stops ?? []).map((stop) => stop.city.trim()).filter(Boolean)));
-  const completionProgress = trip?.summary.totalStops
-    ? Math.min(100, Math.max(0, (trip.summary.completedStops / trip.summary.totalStops) * 100))
-    : 0;
-
   async function acceptRoute() {
     if (!trip || !sessionToken || acceptingRoute) return;
     setAcceptingRoute(true);
@@ -206,7 +185,6 @@ export default function DriverHomeScreen() {
       await refreshTrip(false);
       try {
         await startTripTracking(trip.id, sessionToken, trip.tracking.stopAt);
-        setTrackingActive(true);
       } catch (error) {
         setTrackingMessage(error instanceof Error ? error.message : 'Nao foi possivel iniciar o rastreamento.');
       }
@@ -403,43 +381,17 @@ export default function DriverHomeScreen() {
   const headerContent = (
     <Pressable onPress={() => setHeaderCompact(true)} style={[styles.header, headerCompact && styles.headerCompact]}>
       <Text style={[styles.greeting, headerCompact && styles.greetingCompact]}>{headerCompact ? displayName : `Olá, ${displayName}`}</Text>
-      {!headerCompact ? <Text style={styles.greetingHint}>Toque ou role para recolher</Text> : trip ? <Text style={styles.compactRoute}>Rota #{trip.id} • {trip.vehicle.licensePlate}</Text> : null}
+      {!headerCompact ? <Text style={styles.greetingHint}>Toque ou role para recolher</Text> : null}
     </Pressable>
   );
 
-  const summaryContent = trip ? (
-    <View style={styles.summaryCard}>
-      <View style={styles.summaryTop}>
-        <View style={styles.routeLine}>
-          <Text style={styles.routeTitle}>Rota #{trip.id}</Text>
-          <Text numberOfLines={1} style={styles.routeMeta}>{formatTripDate(trip.date)}  •  {trip.vehicle.licensePlate || trip.vehicle.model}</Text>
-        </View>
-        <Pressable onPress={() => void refreshTrip(true)} style={styles.refreshMini}>
-          {loadState === 'refreshing' ? <ActivityIndicator color="#1555A0" size="small" /> : <Text style={styles.refreshMiniText}>Atualizar</Text>}
-        </Pressable>
-      </View>
-      <View style={styles.progressHeader}>
-        <Text style={styles.progressPrimary}>{trip.summary.totalStops} recebidas</Text>
-        <Text style={styles.progressMeta}>{trip.summary.completedStops} finalizadas  •  {trip.summary.pendingStops} pendentes</Text>
-      </View>
-      <View accessibilityLabel={`${Math.round(completionProgress)} por cento concluído`} accessibilityRole="progressbar" style={styles.progressTrack}>
-        <View style={[styles.progressFill, { width: `${completionProgress}%` }]} />
-      </View>
-      <Text numberOfLines={1} style={styles.citiesText}>{cities.length ? cities.join('  •  ') : 'Cidades não informadas'}</Text>
-      {!simulationEnabled && !trip.tracking.acceptedAt ? (
-        <Pressable disabled={acceptingRoute} onPress={() => void acceptRoute()} style={styles.acceptRouteButton}>
-          {acceptingRoute ? <ActivityIndicator color="#FFFFFF" size="small" /> : <Text style={styles.acceptRouteButtonText}>ACEITAR VIAGEM</Text>}
-        </Pressable>
-      ) : !simulationEnabled ? (
-        <View style={styles.trackingRow}>
-          <View style={[styles.trackingDot, trip.tracking.acceptedAt && trackingActive && styles.trackingDotActive]} />
-          <View style={styles.trackingCopy}>
-            <Text style={styles.trackingTitle}>Viagem em andamento</Text>
-          </View>
-          <Text style={styles.trackingLocked}>GPS ativo</Text>
-        </View>
-      ) : null}
-      {trackingMessage ? <Text style={styles.trackingError}>{trackingMessage}</Text> : null}
+  const summaryContent = trip && !simulationEnabled && !trip.tracking.acceptedAt ? (
+    <View style={styles.acceptanceCard}>
+      <Text style={styles.acceptanceTitle}>Sua viagem está pronta</Text>
+      <Text style={styles.acceptanceText}>Confirme o aceite para liberar as entregas e iniciar o acompanhamento pelo GPS.</Text>
+      <Pressable disabled={acceptingRoute} onPress={() => void acceptRoute()} style={styles.acceptRouteButton}>
+        {acceptingRoute ? <ActivityIndicator color="#FFFFFF" size="small" /> : <Text style={styles.acceptRouteButtonText}>ACEITAR VIAGEM</Text>}
+      </Pressable>
     </View>
   ) : null;
 
@@ -499,10 +451,10 @@ export default function DriverHomeScreen() {
     </View>
   ) : null;
 
-  const finishedContent = finishedStops.length ? (
+  const exceptionContent = exceptionStops.length ? (
     <View style={styles.section}>
-      <SectionTitle title="Finalizadas e devolvidas" count={finishedStops.length} />
-      {finishedStops.map((stop) => (
+      <SectionTitle title="Ocorrências da viagem" count={exceptionStops.length} subtitle="Devoluções, reentregas, retidos e cancelamentos" />
+      {exceptionStops.map((stop) => (
         <DeliveryCard
           key={stop.id}
           stop={stop}
@@ -516,7 +468,7 @@ export default function DriverHomeScreen() {
 
   const pendingReceiptsContent = pendingReceiptStops.length ? (
     <View style={styles.section}>
-      <SectionTitle title="Entregues — falta foto" count={pendingReceiptStops.length} subtitle="Poste no grupo indicado para finalizar" />
+      <SectionTitle title="Entregues sem foto" count={pendingReceiptStops.length} subtitle="Poste no grupo indicado para finalizar" />
       {pendingReceiptStops.map((stop) => <DeliveryCard key={stop.id} stop={stop} onDetails={() => setDetailsStop(stop)} />)}
       <Link href={{ pathname: '/pending-receipts', params: { tripId: String(trip?.id || '') } } as never} asChild>
         <Pressable style={styles.pendingReceiptButton}><Text style={styles.pendingReceiptButtonText}>Ver NFs e grupos de WhatsApp</Text></Pressable>
@@ -524,11 +476,27 @@ export default function DriverHomeScreen() {
     </View>
   ) : null;
 
+  const completedDeliveriesLink = completedDeliveryStops.length ? (
+    <View style={styles.section}>
+      <Link href={{ pathname: '/completed-deliveries', params: { tripId: String(trip?.id || '') } } as never} asChild>
+        <Pressable style={styles.completedDeliveriesButton}>
+          <View>
+            <Text style={styles.completedDeliveriesTitle}>Entregas concluídas</Text>
+            <Text style={styles.completedDeliveriesSubtitle}>Fotos já postadas • fora da fila principal</Text>
+          </View>
+          <View style={styles.completedDeliveriesCount}><Text style={styles.completedDeliveriesCountText}>{completedDeliveryStops.length}</Text></View>
+        </Pressable>
+      </Link>
+    </View>
+  ) : null;
+
   const footerContent = (
     <View style={styles.listFooter}>
-      {finishedContent}
       {pendingReceiptsContent}
+      {exceptionContent}
+      {completedDeliveriesLink}
       {message ? <View style={styles.offlineBox}><Text style={styles.offlineText}>{message} O último roteiro salvo continua visível.</Text></View> : null}
+      {trackingMessage ? <View style={styles.operationBox}><Text style={styles.operationText}>{trackingMessage}</Text></View> : null}
       {operationMessage ? <View style={styles.operationBox}><Text style={styles.operationText}>{operationMessage}</Text></View> : null}
       <View style={styles.footerActions}>
         {isNonProduction ? <Link href="/diagnostics" asChild><Pressable style={styles.footerButton}><Text style={styles.footerButtonText}>Diagnóstico</Text></Pressable></Link> : null}
@@ -606,7 +574,8 @@ export default function DriverHomeScreen() {
             ) : null}
 
             {pendingReceiptsContent}
-            {finishedContent}
+            {exceptionContent}
+            {completedDeliveriesLink}
           </>
         ) : (
           <View style={styles.emptyCard}>
@@ -617,6 +586,7 @@ export default function DriverHomeScreen() {
         )}
 
         {message ? <View style={styles.offlineBox}><Text style={styles.offlineText}>{message} O último roteiro salvo continua visível.</Text></View> : null}
+        {trackingMessage ? <View style={styles.operationBox}><Text style={styles.operationText}>{trackingMessage}</Text></View> : null}
         {operationMessage ? <View style={styles.operationBox}><Text style={styles.operationText}>{operationMessage}</Text></View> : null}
 
         <View style={styles.footerActions}>
@@ -665,36 +635,18 @@ const styles = StyleSheet.create({
   greeting: { color: '#142035', fontSize: 25, fontWeight: '900', letterSpacing: -0.7 },
   greetingCompact: { fontSize: 17, letterSpacing: -0.3 },
   greetingHint: { color: '#8490A0', fontSize: 10, marginTop: 4 },
-  compactRoute: { color: '#607087', fontSize: 11, fontWeight: '700' },
-  summaryCard: { marginHorizontal: 18, backgroundColor: '#FFFFFF', borderRadius: 17, paddingHorizontal: 14, paddingVertical: 12, borderWidth: 1, borderColor: '#E1E6EC', gap: 7 },
-  summaryTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 },
-  routeLine: { flex: 1, flexDirection: 'row', alignItems: 'baseline', gap: 8 },
-  routeTitle: { color: '#17243A', fontSize: 14, fontWeight: '900' },
-  routeMeta: { flex: 1, color: '#6B7789', fontSize: 10, fontWeight: '700' },
-  refreshMini: { minWidth: 58, height: 28, borderRadius: 9, backgroundColor: '#E9F1FC', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8 },
-  refreshMiniText: { color: '#1555A0', fontSize: 9, fontWeight: '900' },
-  progressHeader: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 },
-  progressPrimary: { color: '#17243A', fontSize: 12, fontWeight: '900' },
-  progressMeta: { color: '#69778B', fontSize: 9, fontWeight: '700' },
-  progressTrack: { height: 7, overflow: 'hidden', borderRadius: 4, backgroundColor: '#E4E9EF' },
-  progressFill: { height: '100%', minWidth: 0, borderRadius: 4, backgroundColor: '#25A66A' },
-  citiesText: { color: '#536279', fontSize: 9, fontWeight: '800' },
-  trackingRow: { marginTop: 3, flexDirection: 'row', alignItems: 'center', gap: 8, borderTopWidth: 1, borderTopColor: '#E8ECF1', paddingTop: 9 },
-  trackingDot: { width: 9, height: 9, borderRadius: 5, backgroundColor: '#AAB3BF' },
-  trackingDotActive: { backgroundColor: '#20A464' },
-  trackingCopy: { flex: 1 },
-  trackingTitle: { color: '#24334A', fontSize: 10, fontWeight: '900' },
-  trackingHint: { color: '#748196', fontSize: 9, marginTop: 1 },
+  acceptanceCard: { marginHorizontal: 18, backgroundColor: '#FFFFFF', borderRadius: 17, padding: 14, borderWidth: 1, borderColor: '#E1E6EC', gap: 8 },
+  acceptanceTitle: { color: '#17243A', fontSize: 16, fontWeight: '900' },
+  acceptanceText: { color: '#69778B', fontSize: 11, lineHeight: 16 },
   acceptRouteButton: { minHeight: 58, marginTop: 5, borderRadius: 15, backgroundColor: '#1268E8', alignItems: 'center', justifyContent: 'center', shadowColor: '#1268E8', shadowOpacity: 0.28, shadowRadius: 9, shadowOffset: { width: 0, height: 5 }, elevation: 5 },
   acceptRouteButtonText: { color: '#FFFFFF', fontSize: 16, fontWeight: '900', letterSpacing: 0.6 },
-  trackingButton: { minWidth: 61, height: 30, borderRadius: 9, backgroundColor: '#E9F1FC', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 9 },
-  trackingButtonStop: { backgroundColor: '#FCECEC' },
-  trackingButtonText: { color: '#1555A0', fontSize: 10, fontWeight: '900' },
-  trackingLocked: { color: '#17643D', fontSize: 10, fontWeight: '900', backgroundColor: '#EAF8F0', borderRadius: 9, paddingHorizontal: 9, paddingVertical: 7 },
-  trackingButtonStopText: { color: '#9B2C2C' },
-  trackingError: { color: '#9B2C2C', fontSize: 9, lineHeight: 13, fontWeight: '700' },
-  pendingReceiptButton: { minHeight: 42, borderRadius: 13, backgroundColor: '#EAF8F0', borderWidth: 1, borderColor: '#A7DFC0', alignItems: 'center', justifyContent: 'center' },
-  pendingReceiptButtonText: { color: '#17643D', fontSize: 12, fontWeight: '900' },
+  pendingReceiptButton: { minHeight: 42, borderRadius: 13, backgroundColor: '#FFF0F0', borderWidth: 1, borderColor: '#E2A4A4', alignItems: 'center', justifyContent: 'center' },
+  pendingReceiptButtonText: { color: '#A42323', fontSize: 12, fontWeight: '900' },
+  completedDeliveriesButton: { minHeight: 66, borderRadius: 16, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: '#DCE3EB', paddingHorizontal: 14, paddingVertical: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+  completedDeliveriesTitle: { color: '#24344B', fontSize: 14, fontWeight: '900' },
+  completedDeliveriesSubtitle: { color: '#768397', fontSize: 10, marginTop: 3 },
+  completedDeliveriesCount: { minWidth: 34, height: 34, borderRadius: 17, backgroundColor: '#EAF8F0', alignItems: 'center', justifyContent: 'center' },
+  completedDeliveriesCountText: { color: '#17643D', fontSize: 12, fontWeight: '900' },
   section: { marginHorizontal: 18, gap: 10 },
   activeZone: { marginHorizontal: 18, gap: 9, padding: 12, borderRadius: 22, backgroundColor: '#DCEBFF', borderWidth: 2, borderColor: '#1268E8' },
   activeZoneHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 3 },

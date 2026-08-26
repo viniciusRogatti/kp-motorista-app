@@ -30,6 +30,7 @@ export default function RootLayout() {
               <Stack.Screen name="home" options={{ headerShown: false }} />
               <Stack.Screen name="diagnostics/index" options={{ title: 'Diagnóstico técnico' }} />
               <Stack.Screen name="pending-receipts" options={{ title: 'Fotos pendentes' }} />
+              <Stack.Screen name="completed-deliveries" options={{ title: 'Entregas concluídas' }} />
               <Stack.Screen name="occurrence" options={{ title: 'Registrar ocorrência' }} />
               <Stack.Screen name="receipt-capture" options={{ title: 'Fotografar canhoto' }} />
             </Stack>

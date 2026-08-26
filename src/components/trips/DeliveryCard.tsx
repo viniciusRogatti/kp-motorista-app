@@ -33,6 +33,7 @@ export function DeliveryCard({
 }) {
   const [translateX, setTranslateX] = useState(0);
   const theme = getCompanyTheme(stop.companyCode);
+  const isMissingPhoto = stop.status === 'delivered_pending_receipt';
   const panResponder = useMemo(() => PanResponder.create({
     onMoveShouldSetPanResponder: (_, gesture) => Math.abs(gesture.dx) > 8 && Math.abs(gesture.dx) > Math.abs(gesture.dy),
     onPanResponderMove: (_, gesture) => setTranslateX(Math.max(-80, Math.min(onSwipeRight ? 80 : 0, gesture.dx))),
@@ -60,10 +61,15 @@ export function DeliveryCard({
           style={[
             styles.card,
             { backgroundColor: theme.background, borderColor: theme.border },
-            stop.status === 'delivered_pending_receipt' && styles.pendingReceipt,
+            isMissingPhoto && styles.pendingReceipt,
             prominent && styles.prominent,
           ]}
         >
+          {isMissingPhoto ? (
+            <View style={styles.missingPhotoBanner}>
+              <Text style={styles.missingPhotoText}>SEM FOTO</Text>
+            </View>
+          ) : null}
           <View style={styles.topRow}>
             <View style={[styles.sequence, { backgroundColor: theme.accent }]}><Text style={styles.sequenceText}>{stop.sequence}</Text></View>
             <View style={styles.companyPill}><Text style={[styles.companyText, { color: theme.accent }]}>{theme.label}</Text></View>
@@ -99,7 +105,9 @@ const styles = StyleSheet.create({
   revealArrow: { color: '#AFC9E9', fontSize: 18, marginTop: 2 },
   card: { borderWidth: 1, borderRadius: 18, padding: 15, minHeight: 118 },
   prominent: { minHeight: 142, borderWidth: 2, shadowColor: '#0B1830', shadowOpacity: 0.14, shadowRadius: 10, shadowOffset: { width: 0, height: 5 }, elevation: 4 },
-  pendingReceipt: { backgroundColor: '#ECFDF3', borderColor: '#86D7AA', opacity: 0.78 },
+  pendingReceipt: { backgroundColor: '#FFF5F5', borderColor: '#DC5656', borderWidth: 2 },
+  missingPhotoBanner: { alignSelf: 'flex-start', borderRadius: 8, backgroundColor: '#C62828', paddingHorizontal: 10, paddingVertical: 5, marginBottom: 10 },
+  missingPhotoText: { color: '#FFFFFF', fontSize: 11, fontWeight: '900', letterSpacing: 1 },
   topRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   sequence: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
   sequenceText: { color: '#FFFFFF', fontWeight: '900', fontSize: 11 },
