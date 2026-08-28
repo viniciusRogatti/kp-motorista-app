@@ -7,11 +7,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useAuth } from '@/auth/AuthContext';
 import { ActionButton } from '@/components/ActionButton';
+import { buildReceiptShareMessage, normalizeInvoiceNumberForShare } from '@/utils/receiptShare';
 
 export default function ReceiptCaptureScreen() {
   const { session, isLoading } = useAuth();
   const params = useLocalSearchParams<{ invoiceNumber?: string; customerName?: string; groupName?: string }>();
-  const invoiceNumber = String(params.invoiceNumber || '').trim();
+  const invoiceNumber = normalizeInvoiceNumberForShare(String(params.invoiceNumber || ''));
   const customerName = String(params.customerName || '').trim();
   const groupName = String(params.groupName || 'Grupo de canhotos').trim();
   const [permission, requestPermission] = useCameraPermissions();
@@ -59,7 +60,7 @@ export default function ReceiptCaptureScreen() {
     try {
       const result = await Share.open({
         title: `Postar no grupo ${groupName}`,
-        message: `NF ${invoiceNumber}`,
+        message: buildReceiptShareMessage(invoiceNumber),
         url: photoUri,
         type: 'image/jpeg',
         filename: `canhoto-nf-${invoiceNumber}.jpg`,
@@ -70,7 +71,7 @@ export default function ReceiptCaptureScreen() {
         setError(`Envio cancelado. Escolha o WhatsApp e depois o grupo ${groupName}.`);
         return;
       }
-      Alert.alert('WhatsApp aberto', `Confirme se o grupo selecionado é ${groupName} e envie a foto com a legenda NF ${invoiceNumber}.`, [
+      Alert.alert('WhatsApp aberto', `Confirme se o grupo selecionado é ${groupName} e envie a foto com a legenda ${invoiceNumber}.`, [
         { text: 'Concluir', onPress: () => router.back() },
       ]);
     } catch (shareError) {
@@ -105,7 +106,7 @@ export default function ReceiptCaptureScreen() {
           {customerName ? <Text style={styles.customer}>{customerName}</Text> : null}
         </View>
         {photoUri ? <Image source={{ uri: photoUri }} style={styles.preview} /> : (
-          <View style={styles.emptyPhoto}><Text style={styles.emptyPhotoTitle}>Fotografe o canhoto</Text><Text style={styles.emptyPhotoText}>A legenda “NF {invoiceNumber}” será incluída automaticamente.</Text></View>
+          <View style={styles.emptyPhoto}><Text style={styles.emptyPhotoTitle}>Fotografe o canhoto</Text><Text style={styles.emptyPhotoText}>A legenda “{invoiceNumber}” será incluída automaticamente.</Text></View>
         )}
         <ActionButton onPress={openCamera} variant={photoUri ? 'secondary' : 'primary'}>{photoUri ? 'Tirar outra foto' : 'Abrir câmera'}</ActionButton>
         {photoUri ? <ActionButton loading={busy} onPress={shareReceipt}>Abrir WhatsApp</ActionButton> : null}
