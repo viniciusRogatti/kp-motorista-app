@@ -12,7 +12,9 @@ Novo aplicativo Android dos motoristas da KP Transportes. Este projeto é indepe
 - login de motorista, sessão segura, aceite e execução da viagem atribuída com cache offline e diagnóstico interno;
 - SQLite com esquema inicial de viagem, paradas, ações, posições e mídias pendentes;
 - localização em segundo plano durante a viagem, com persistência local e reenvio idempotente;
-- reordenação de paradas, ocorrências operacionais, captura de canhoto e compartilhamento orientado para o WhatsApp;
+- reordenação de paradas e correção do resultado de uma entrega marcada por engano enquanto o canhoto ainda não foi registrado;
+- ocorrências de reentrega, devolução total/parcial/quebra de peso, canhoto retido, produto faltante e cancelamento/refaturamento;
+- mensagens operacionais pré-montadas, foto comprobatória quando exigida, captura de canhoto e compartilhamento orientado para o WhatsApp;
 - registro de push token e recebimento de notificações operacionais;
 - configuração central validada e bloqueio de localhost em produção;
 - nenhum segredo, credencial, endpoint de produção ou projeto Firebase incluído.
@@ -43,9 +45,18 @@ npm run doctor
 npm run lint
 npm run typecheck
 npm test
+npm run update:preview -- --message "fix: descrição da atualização"
 ```
 
-Builds EAS são deliberadamente manuais: `build:development`, `build:preview` e `build:production`. Nenhum script publica automaticamente.
+Builds EAS são deliberadamente manuais: `build:development`, `build:preview` e `build:production`. Atualizações OTA também exigem execução e mensagem explícitas; nenhum fluxo publica automaticamente.
+
+## Homologação e atualizações OTA
+
+O APK Preview atual aponta para o backend publicado no Railway e opera com dados reais de homologação. As variáveis públicas do perfil `preview` ficam cadastradas no EAS, e o script `update:preview` também fixa o endpoint remoto e bloqueia o uso acidental de `localhost`.
+
+Uma atualização OTA distribui JavaScript, TypeScript, estilos e assets compatíveis com a mesma runtime nativa. Depois da publicação, feche e abra o app para baixar a atualização e abra novamente para aplicá-la. Mudanças em bibliotecas nativas, permissões, plugins, Manifest, Firebase, SDK Expo ou runtime exigem a geração e instalação de um novo APK.
+
+Antes de testar, confirme que a operação pode usar os dados reais daquele motorista e daquela rota. O envio ao WhatsApp continua sob confirmação do motorista: o app prepara a mensagem e a foto, abre o compartilhamento e registra apenas que o compartilhamento foi iniciado; a postagem efetiva ainda precisa ser confirmada no grupo correto.
 
 ## Documentação
 
@@ -61,4 +72,4 @@ Builds EAS são deliberadamente manuais: `build:development`, `build:preview` e 
 
 ## Limites atuais
 
-O backend continua sendo a autoridade para os fluxos operacionais. A localização possui fila offline própria, mas as demais mutações ainda são enviadas diretamente e precisam de uma outbox operacional completa para funcionar sem rede. O compartilhamento do canhoto prepara foto e legenda, porém o motorista ainda escolhe manualmente o WhatsApp e o grupo; a baixa final depende do reconhecimento da postagem pelo backend. Builds e validações em aparelho físico continuam sendo etapas obrigatórias antes de uma publicação.
+O backend continua sendo a autoridade para os fluxos operacionais. A localização possui fila offline própria, mas as demais mutações ainda são enviadas diretamente e precisam de uma outbox operacional completa para funcionar sem rede. Ocorrências sem foto são enviadas como JSON; ocorrências com foto usam upload multipart e dependem de conexão estável. A correção de uma entrega em `delivered_pending_receipt` só é permitida enquanto não existir canhoto registrado. O compartilhamento do canhoto prepara foto e legenda, porém o motorista ainda escolhe manualmente o WhatsApp e o grupo; a baixa final depende do reconhecimento da postagem pelo backend. Builds e validações em aparelho físico continuam sendo etapas obrigatórias antes de uma publicação.
