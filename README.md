@@ -52,7 +52,7 @@ Builds EAS são deliberadamente manuais: `build:development`, `build:preview` e 
 
 ## Homologação e atualizações OTA
 
-O APK Preview atual aponta para o backend publicado no Railway e opera com dados reais de homologação. As variáveis públicas do perfil `preview` ficam cadastradas no EAS, e o script `update:preview` também fixa o endpoint remoto e bloqueia o uso acidental de `localhost`.
+O APK Preview atual aponta para o backend publicado no Railway e opera com dados reais de homologação. Nesta fase, o backend entrega ao app apenas a rota da data operacional atual; rotas antigas não finalizadas ficam disponíveis somente para a equipe de monitoramento. As variáveis públicas do perfil `preview` ficam cadastradas no EAS, e o script `update:preview` também fixa o endpoint remoto e bloqueia o uso acidental de `localhost`.
 
 Uma atualização OTA distribui JavaScript, TypeScript, estilos e assets compatíveis com a mesma runtime nativa. O app baixa a atualização na inicialização e reinicia automaticamente assim que ela estiver pronta; o primeiro update que habilitou esse comportamento ainda pode exigir fechar e abrir o app novamente. Mudanças em bibliotecas nativas, permissões, plugins, Manifest, Firebase, SDK Expo ou runtime exigem a geração e instalação de um novo APK.
 
