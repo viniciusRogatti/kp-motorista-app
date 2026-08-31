@@ -54,7 +54,7 @@ Builds EAS são deliberadamente manuais: `build:development`, `build:preview` e 
 
 O APK Preview atual aponta para o backend publicado no Railway e opera com dados reais de homologação. As variáveis públicas do perfil `preview` ficam cadastradas no EAS, e o script `update:preview` também fixa o endpoint remoto e bloqueia o uso acidental de `localhost`.
 
-Uma atualização OTA distribui JavaScript, TypeScript, estilos e assets compatíveis com a mesma runtime nativa. Depois da publicação, feche e abra o app para baixar a atualização e abra novamente para aplicá-la. Mudanças em bibliotecas nativas, permissões, plugins, Manifest, Firebase, SDK Expo ou runtime exigem a geração e instalação de um novo APK.
+Uma atualização OTA distribui JavaScript, TypeScript, estilos e assets compatíveis com a mesma runtime nativa. O app baixa a atualização na inicialização e reinicia automaticamente assim que ela estiver pronta; o primeiro update que habilitou esse comportamento ainda pode exigir fechar e abrir o app novamente. Mudanças em bibliotecas nativas, permissões, plugins, Manifest, Firebase, SDK Expo ou runtime exigem a geração e instalação de um novo APK.
 
 Antes de testar, confirme que a operação pode usar os dados reais daquele motorista e daquela rota. O envio ao WhatsApp continua sob confirmação do motorista: o app prepara a mensagem e a foto, abre o compartilhamento e registra apenas que o compartilhamento foi iniciado; a postagem efetiva ainda precisa ser confirmada no grupo correto.
 

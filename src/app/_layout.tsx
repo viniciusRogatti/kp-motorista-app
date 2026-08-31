@@ -9,6 +9,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthProvider } from '@/auth/AuthContext';
 import { DATABASE_NAME, migrateDatabase } from '@/database/schema';
 import { NotificationCoordinator } from '@/components/NotificationCoordinator';
+import { UpdateCoordinator } from '@/components/UpdateCoordinator';
 
 export default function RootLayout() {
   return (
@@ -16,6 +17,7 @@ export default function RootLayout() {
       <SafeAreaProvider>
         <SQLiteProvider databaseName={DATABASE_NAME} onInit={migrateDatabase}>
           <AuthProvider>
+            <UpdateCoordinator />
             <NotificationCoordinator />
             <StatusBar style="light" />
             <Stack
