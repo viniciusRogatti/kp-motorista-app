@@ -198,16 +198,18 @@ export default function DriverHomeScreen() {
   async function changeStopStatus(stop: Stop, status: DriverStopStatus) {
     if (simulationEnabled) {
       setTrip((current) => current ? updateSimulatedStatus(current, stop.id, status) : current);
-      return;
+      return true;
     }
-    if (!operationsEnabled || !sessionToken || activeOperation) return;
+    if (!operationsEnabled || !sessionToken || activeOperation) return false;
     setActiveOperation(`status-${stop.id}`);
     setOperationMessage('');
     try {
       await updateTripStopStatus(sessionToken, stop.id, status, Crypto.randomUUID());
       await refreshTrip(false);
+      return true;
     } catch (error) {
       setOperationMessage(error instanceof Error ? error.message : 'Não foi possível atualizar a parada.');
+      return false;
     } finally {
       setActiveOperation(null);
     }
@@ -350,18 +352,36 @@ export default function DriverHomeScreen() {
     } else if (stop.status === 'on_the_way') {
       void changeStopStatus(stop, 'arrived');
     } else if (stop.status === 'arrived') {
-      void changeStopStatus(stop, 'delivered_pending_receipt');
+      void completeDelivery(stop);
     }
+  }
+
+  async function completeDelivery(stop: Stop) {
+    const updated = await changeStopStatus(stop, 'delivered_pending_receipt');
+    if (!updated || simulationEnabled) return;
+    router.push({
+      pathname: '/receipt-capture',
+      params: {
+        invoiceNumber: stop.invoiceNumber,
+        customerName: stop.customerName,
+        groupName: stop.receiptGroupName || 'Grupo de canhotos',
+        autoOpen: '1',
+      },
+    } as never);
   }
 
   async function applyLiveResult(status: DriverStopStatus) {
     if (!statusStop || !sessionToken || activeOperation) return;
     const stop = statusStop;
     setStatusStop(null);
+    if (status === 'delivered_pending_receipt') {
+      await completeDelivery(stop);
+      return;
+    }
     await changeStopStatus(stop, status);
   }
 
-  function openOccurrence(occurrenceType: 'redelivery' | 'return' | 'missing_product' | 'cancellation') {
+  function openOccurrence(occurrenceType: 'redelivery' | 'return' | 'retained_receipt' | 'missing_product' | 'cancellation') {
     if (!statusStop) return;
     const stopId = statusStop.id;
     setStatusStop(null);
@@ -412,8 +432,9 @@ export default function DriverHomeScreen() {
               </>
             )}
           </View>
-          {item.stops.map((stop) => (
+          {item.stops.map((stop, index) => (
             <DeliveryCard
+              compact={index > 0}
               key={stop.id}
               stop={stop}
               prominent={false}
@@ -437,6 +458,7 @@ export default function DriverHomeScreen() {
         <DeliveryCard
           key={stop.id}
           stop={stop}
+          compact={index > 0}
           prominent={index === 0}
           onDetails={() => setDetailsStop(stop)}
           onSwipeRight={() => advanceStop(stop)}
@@ -550,6 +572,7 @@ export default function DriverHomeScreen() {
                   <DeliveryCard
                     key={stop.id}
                     stop={stop}
+                    compact={index > 0}
                     prominent={index === 0}
                     onDetails={() => setDetailsStop(stop)}
                     primaryAction={statusAction(stop)}
@@ -611,6 +634,7 @@ export default function DriverHomeScreen() {
         ] : [
           ...(statusStop?.status === 'arrived' ? [{ label: 'Entregue — aguardando foto', onPress: () => void applyLiveResult('delivered_pending_receipt') }] : []),
           { label: 'Devolução', tone: 'danger' as const, onPress: () => openOccurrence('return') },
+          { label: 'Canhoto retido', onPress: () => openOccurrence('retained_receipt') },
           { label: 'Produto faltante', onPress: () => openOccurrence('missing_product') },
           { label: 'Reentrega', onPress: () => openOccurrence('redelivery') },
           { label: 'Solicitar cancelamento/refaturamento', tone: 'danger' as const, onPress: () => openOccurrence('cancellation') },

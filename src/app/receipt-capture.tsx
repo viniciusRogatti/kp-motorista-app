@@ -1,6 +1,6 @@
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { Redirect, router, useLocalSearchParams } from 'expo-router';
-import { useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import Share from 'react-native-share';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -11,7 +11,7 @@ import { buildReceiptShareMessage, normalizeInvoiceNumberForShare } from '@/util
 
 export default function ReceiptCaptureScreen() {
   const { session, isLoading } = useAuth();
-  const params = useLocalSearchParams<{ invoiceNumber?: string; customerName?: string; groupName?: string }>();
+  const params = useLocalSearchParams<{ invoiceNumber?: string; customerName?: string; groupName?: string; autoOpen?: string }>();
   const invoiceNumber = normalizeInvoiceNumberForShare(String(params.invoiceNumber || ''));
   const customerName = String(params.customerName || '').trim();
   const groupName = String(params.groupName || 'Grupo de canhotos').trim();
@@ -21,12 +21,9 @@ export default function ReceiptCaptureScreen() {
   const [photoUri, setPhotoUri] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const autoOpenAttempted = useRef(false);
 
-  if (isLoading) return <View style={styles.center}><ActivityIndicator color="#1268E8" /></View>;
-  if (!session) return <Redirect href="/" />;
-  if (!invoiceNumber) return <View style={styles.center}><Text style={styles.errorText}>NF não informada.</Text></View>;
-
-  async function openCamera() {
+  const openCamera = useCallback(async () => {
     let granted = permission?.granted;
     if (!granted) granted = (await requestPermission()).granted;
     if (!granted) {
@@ -34,7 +31,17 @@ export default function ReceiptCaptureScreen() {
       return;
     }
     setCameraOpen(true);
-  }
+  }, [permission?.granted, requestPermission]);
+
+  useEffect(() => {
+    if (params.autoOpen !== '1' || isLoading || !session || !invoiceNumber || autoOpenAttempted.current) return;
+    autoOpenAttempted.current = true;
+    void openCamera();
+  }, [invoiceNumber, isLoading, openCamera, params.autoOpen, session]);
+
+  if (isLoading) return <View style={styles.center}><ActivityIndicator color="#1268E8" /></View>;
+  if (!session) return <Redirect href="/" />;
+  if (!invoiceNumber) return <View style={styles.center}><Text style={styles.errorText}>NF não informada.</Text></View>;
 
   async function takePhoto() {
     if (!cameraRef.current || busy) return;
@@ -86,11 +93,14 @@ export default function ReceiptCaptureScreen() {
       <View style={styles.cameraScreen}>
         <CameraView ref={cameraRef} facing="back" style={StyleSheet.absoluteFill} />
         <SafeAreaView style={styles.cameraOverlay}>
-          <Pressable onPress={() => setCameraOpen(false)} style={styles.cameraClose}><Text style={styles.cameraCloseText}>Cancelar</Text></Pressable>
+          <Pressable accessibilityLabel="Fechar câmera" onPress={() => setCameraOpen(false)} style={styles.cameraClose}><Text style={styles.cameraCloseText}>×</Text></Pressable>
           <View style={styles.cameraHint}><Text style={styles.cameraHintText}>Enquadre todo o canhoto e deixe a assinatura e a NF legíveis.</Text></View>
-          <Pressable disabled={busy} onPress={() => void takePhoto()} style={styles.shutter}>
-            {busy ? <ActivityIndicator color="#0B1830" /> : <View style={styles.shutterInner} />}
-          </Pressable>
+          <View style={styles.cameraActions}>
+            <Pressable disabled={busy} onPress={() => void takePhoto()} style={styles.shutter}>
+              {busy ? <ActivityIndicator color="#0B1830" /> : <View style={styles.shutterInner} />}
+            </Pressable>
+            <Pressable onPress={() => router.back()} style={styles.laterButton}><Text style={styles.laterButtonText}>Tirar foto depois</Text></Pressable>
+          </View>
         </SafeAreaView>
       </View>
     );
@@ -108,7 +118,7 @@ export default function ReceiptCaptureScreen() {
         {photoUri ? <Image source={{ uri: photoUri }} style={styles.preview} /> : (
           <View style={styles.emptyPhoto}><Text style={styles.emptyPhotoTitle}>Fotografe o canhoto</Text><Text style={styles.emptyPhotoText}>A legenda “{invoiceNumber}” será incluída automaticamente.</Text></View>
         )}
-        <ActionButton onPress={openCamera} variant={photoUri ? 'secondary' : 'primary'}>{photoUri ? 'Tirar outra foto' : 'Abrir câmera'}</ActionButton>
+        <ActionButton onPress={() => void openCamera()} variant={photoUri ? 'secondary' : 'primary'}>{photoUri ? 'Tirar outra foto' : 'Abrir câmera'}</ActionButton>
         {photoUri ? <ActionButton loading={busy} onPress={shareReceipt}>Abrir WhatsApp</ActionButton> : null}
         {error ? <View style={styles.error}><Text style={styles.errorText}>{error}</Text></View> : null}
         <Text style={styles.hint}>O Astro abre o compartilhamento com foto e legenda prontas. Você escolhe o WhatsApp e o grupo indicado acima.</Text>
@@ -136,9 +146,12 @@ const styles = StyleSheet.create({
   cameraScreen: { flex: 1, backgroundColor: '#000000' },
   cameraOverlay: { flex: 1, alignItems: 'center', justifyContent: 'space-between', padding: 20 },
   cameraClose: { alignSelf: 'flex-start', backgroundColor: 'rgba(0,0,0,0.58)', borderRadius: 12, paddingHorizontal: 15, paddingVertical: 10 },
-  cameraCloseText: { color: '#FFFFFF', fontWeight: '900' },
+  cameraCloseText: { color: '#FFFFFF', fontWeight: '900', fontSize: 24, lineHeight: 24 },
   cameraHint: { backgroundColor: 'rgba(0,0,0,0.58)', borderRadius: 13, padding: 11 },
   cameraHintText: { color: '#FFFFFF', fontSize: 12, textAlign: 'center' },
   shutter: { width: 78, height: 78, borderRadius: 39, backgroundColor: '#FFFFFF', alignItems: 'center', justifyContent: 'center' },
   shutterInner: { width: 59, height: 59, borderRadius: 30, borderWidth: 2, borderColor: '#0B1830' },
+  cameraActions: { alignItems: 'center', gap: 14 },
+  laterButton: { minHeight: 42, minWidth: 180, borderRadius: 13, backgroundColor: 'rgba(0,0,0,0.65)', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 18 },
+  laterButtonText: { color: '#FFFFFF', fontSize: 13, fontWeight: '900' },
 });
