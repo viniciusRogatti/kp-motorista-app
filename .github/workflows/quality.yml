@@ -1,0 +1,35 @@
+name: Qualidade
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Baixar código
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20.19.5
+          cache: npm
+
+      - name: Instalar dependências
+        run: npm ci
+
+      - name: Validar tipos
+        run: npm run typecheck
+
+      - name: Validar lint
+        run: npm run lint
+
+      - name: Executar testes
+        run: npm test
