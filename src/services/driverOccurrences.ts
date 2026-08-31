@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 import { ApiError, apiRequest } from './http';
 
-export type DriverOccurrenceType = 'redelivery' | 'return' | 'missing_product' | 'cancellation';
+export type DriverOccurrenceType = 'redelivery' | 'return' | 'retained_receipt' | 'missing_product' | 'cancellation';
 export type DriverOccurrenceItem = { productCode: string; quantity: number };
 export type EvidencePhoto = { uri: string; mimeType?: string | null; fileName?: string | null };
 
@@ -22,7 +22,8 @@ const responseSchema = z.object({
 
 export async function createDriverOccurrence(token: string, stopId: number, input: {
   occurrenceType: DriverOccurrenceType;
-  returnScope?: 'total' | 'partial' | null;
+  returnScope?: 'total' | 'partial' | 'weight_break' | null;
+  retentionKind?: 'occurrence' | 'other' | null;
   reason: string;
   description?: string;
   items?: DriverOccurrenceItem[];
@@ -32,6 +33,7 @@ export async function createDriverOccurrence(token: string, stopId: number, inpu
   const form = new FormData();
   form.append('occurrenceType', input.occurrenceType);
   if (input.returnScope) form.append('returnScope', input.returnScope);
+  if (input.retentionKind) form.append('retentionKind', input.retentionKind);
   form.append('reason', input.reason);
   form.append('description', input.description ?? '');
   form.append('items', JSON.stringify(input.items ?? []));

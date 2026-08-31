@@ -32,12 +32,14 @@ import {
 import type { AssignedTrip } from '@/types/trip';
 
 type Stop = AssignedTrip['stops'][number];
-type ReturnScope = 'total' | 'partial';
+type ReturnScope = 'total' | 'partial' | 'weight_break';
+type RetentionKind = 'occurrence' | 'other';
 type Photo = Pick<CameraCapturedPicture, 'uri'> & { mimeType?: string; fileName?: string };
 
 const OCCURRENCE_LABELS: Record<DriverOccurrenceType, string> = {
   redelivery: 'Reentrega',
   return: 'Devolução',
+  retained_receipt: 'Canhoto retido',
   missing_product: 'Produto faltante',
   cancellation: 'Cancelamento / refaturamento',
 };
@@ -46,7 +48,7 @@ const REDELIVERY_REASONS = [
   'NÃO HOUVE TEMPO PARA IR AO LOCAL',
   'LOCAL FECHOU ANTES DA CONCLUSÃO',
 ];
-const validTypes = new Set<DriverOccurrenceType>(['redelivery', 'return', 'missing_product', 'cancellation']);
+const validTypes = new Set<DriverOccurrenceType>(['redelivery', 'return', 'retained_receipt', 'missing_product', 'cancellation']);
 const normalizeUpper = (value: string) => value.trim().toLocaleUpperCase('pt-BR');
 
 export default function OccurrenceScreen() {
@@ -60,6 +62,7 @@ export default function OccurrenceScreen() {
   const [stop, setStop] = useState<Stop | null>(null);
   const [loadingStop, setLoadingStop] = useState(true);
   const [returnScope, setReturnScope] = useState<ReturnScope>('total');
+  const [retentionKind, setRetentionKind] = useState<RetentionKind>('occurrence');
   const [reason, setReason] = useState('');
   const [description, setDescription] = useState('');
   const [quantities, setQuantities] = useState<Record<string, string>>({});
@@ -156,6 +159,7 @@ export default function OccurrenceScreen() {
       const response = await createDriverOccurrence(currentSession.token, currentStop.id, {
         occurrenceType: currentOccurrenceType,
         returnScope: currentOccurrenceType === 'return' ? returnScope : null,
+        retentionKind: currentOccurrenceType === 'retained_receipt' ? retentionKind : null,
         reason,
         description,
         items: needsItems ? selectedItems : [],
@@ -217,9 +221,22 @@ export default function OccurrenceScreen() {
             <View style={styles.section}>
               <Text style={styles.label}>Tipo da devolução</Text>
               <View style={styles.row}>
-                {(['total', 'partial'] as const).map((scope) => (
+                {(['total', 'partial', 'weight_break'] as const).map((scope) => (
                   <Pressable key={scope} onPress={() => setReturnScope(scope)} style={[styles.choice, returnScope === scope && styles.choiceActive]}>
-                    <Text style={[styles.choiceText, returnScope === scope && styles.choiceTextActive]}>{scope === 'total' ? 'Total' : 'Parcial'}</Text>
+                    <Text style={[styles.choiceText, returnScope === scope && styles.choiceTextActive]}>{scope === 'total' ? 'Total' : scope === 'partial' ? 'Parcial' : 'Quebra de peso'}</Text>
+                  </Pressable>
+                ))}
+              </View>
+            </View>
+          ) : null}
+
+          {occurrenceType === 'retained_receipt' ? (
+            <View style={styles.section}>
+              <Text style={styles.label}>Tipo do registro</Text>
+              <View style={styles.row}>
+                {(['occurrence', 'other'] as const).map((kind) => (
+                  <Pressable key={kind} onPress={() => setRetentionKind(kind)} style={[styles.choice, retentionKind === kind && styles.choiceActive]}>
+                    <Text style={[styles.choiceText, retentionKind === kind && styles.choiceTextActive]}>{kind === 'occurrence' ? 'Registrar ocorrência' : 'Outros'}</Text>
                   </Pressable>
                 ))}
               </View>
