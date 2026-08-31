@@ -491,7 +491,14 @@ export default function DriverHomeScreen() {
   const pendingReceiptsContent = pendingReceiptStops.length ? (
     <View style={styles.section}>
       <SectionTitle title="Entregues sem foto" count={pendingReceiptStops.length} subtitle="Poste no grupo indicado para finalizar" />
-      {pendingReceiptStops.map((stop) => <DeliveryCard key={stop.id} stop={stop} onDetails={() => setDetailsStop(stop)} />)}
+      {pendingReceiptStops.map((stop) => (
+        <DeliveryCard
+          key={stop.id}
+          stop={stop}
+          onDetails={() => setDetailsStop(stop)}
+          primaryAction={{ label: 'Corrigir resultado da entrega', onPress: () => setStatusStop(stop) }}
+        />
+      ))}
       <Link href={{ pathname: '/pending-receipts', params: { tripId: String(trip?.id || '') } } as never} asChild>
         <Pressable style={styles.pendingReceiptButton}><Text style={styles.pendingReceiptButtonText}>Ver NFs e grupos de WhatsApp</Text></Pressable>
       </Link>
@@ -621,7 +628,10 @@ export default function DriverHomeScreen() {
       </ScrollView>}
       <DeliveryDetailsModal
         onClose={() => setDetailsStop(null)}
-        onOpenActions={!simulationEnabled && detailsStop && currentIds.has(detailsStop.id) && isActiveStopStatus(detailsStop.status) ? (stop) => setStatusStop(stop) : undefined}
+        onOpenActions={!simulationEnabled && detailsStop && (
+          (currentIds.has(detailsStop.id) && isActiveStopStatus(detailsStop.status))
+          || detailsStop.status === 'delivered_pending_receipt'
+        ) ? (stop) => setStatusStop(stop) : undefined}
         stop={detailsStop}
       />
       <ActionSheet
@@ -640,7 +650,11 @@ export default function DriverHomeScreen() {
           { label: 'Solicitar cancelamento/refaturamento', tone: 'danger' as const, onPress: () => openOccurrence('cancellation') },
         ]}
         onClose={() => setStatusStop(null)}
-        subtitle={simulationEnabled ? 'Escolha um resultado para testar. Atualizar a rota descartará todas as alterações.' : 'O app prepara a mensagem e a foto; no WhatsApp você escolhe o grupo e confirma o envio.'}
+        subtitle={simulationEnabled
+          ? 'Escolha um resultado para testar. Atualizar a rota descartará todas as alterações.'
+          : statusStop?.status === 'delivered_pending_receipt'
+            ? 'Corrija o resultado enquanto o canhoto ainda não foi registrado. Depois da foto, a alteração fica bloqueada.'
+            : 'O app prepara a mensagem e a foto; no WhatsApp você escolhe o grupo e confirma o envio.'}
         title={statusStop ? `NF ${statusStop.invoiceNumber}` : 'Alterar status'}
         visible={Boolean(statusStop)}
       />
