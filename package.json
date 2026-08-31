@@ -75,7 +75,7 @@
     "build:development": "npx eas-cli@latest build --platform android --profile development",
     "build:preview": "npx eas-cli@latest build --platform android --profile preview",
     "build:production": "npx eas-cli@latest build --platform android --profile production",
-    "update:preview": "APP_ENV=preview EXPO_PUBLIC_APP_ENV=preview npx eas-cli@latest update --platform android --channel preview --environment preview",
+    "update:preview": "APP_ENV=preview EXPO_PUBLIC_APP_ENV=preview EXPO_PUBLIC_API_URL=https://kptransportes-backend.up.railway.app EXPO_PUBLIC_SOCKET_URL=https://kptransportes-backend.up.railway.app EXPO_PUBLIC_BUILD_CHANNEL=preview EXPO_PUBLIC_OPERATIONS_MODE=live EXPO_PUBLIC_MAP_PROVIDER=external npx eas-cli@latest update --platform android --channel preview --environment preview",
     "update:production": "APP_ENV=production EXPO_PUBLIC_APP_ENV=production npx eas-cli@latest update --platform android --channel production --environment production"
   },
   "private": true,
