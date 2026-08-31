@@ -12,7 +12,7 @@ O diagnóstico oferece um teste manual independente do fluxo operacional. Na rot
 2. Registrar o aceite da rota no backend.
 3. Confirmar as permissões foreground/background já preparadas pela empresa.
 4. Iniciar tarefa com notificação “ASTRO — viagem em andamento e localização ativa”.
-5. Persistir primeiro no SQLite e enviar em lote por endpoint idempotente.
+5. Persistir primeiro no SQLite e enviar as posições pendentes, uma a uma, pelo endpoint idempotente.
 6. Ao concluir todas as paradas, manter por uma hora e então parar e lembrar o motorista de fazer logout.
 
 ## Estratégia adaptativa proposta
@@ -26,7 +26,7 @@ O diagnóstico oferece um teste manual independente do fluxo operacional. Na rot
 ## Integração disponível
 
 - `POST /driver-app/tracking/location`: recebe uma posição autenticada e atualiza a sessão acompanhada pela página web.
-- Se a rede falhar, a posição permanece com estado `retry` no SQLite e é reenviada no próximo lote.
+- Se a rede falhar, a posição permanece com estado `retry` no SQLite e é reenviada na próxima execução da tarefa.
 - Ao aceitar, uma primeira posição é coletada imediatamente; as demais respeitam o intervalo de `/driver-app/tracking/config` e o deslocamento mínimo configurado no app.
 
 ## Bateria e fabricantes

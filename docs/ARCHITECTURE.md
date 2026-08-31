@@ -1,6 +1,6 @@
 # Arquitetura e diagnóstico
 
-Revisão: 2026-08-02.
+Revisão: 2026-08-31.
 
 ## Decisão
 
@@ -22,17 +22,24 @@ src/types               contratos internos
 
 - Node/Express, Sequelize/MySQL, JWT com sessão de 8 horas e escopo por `company_id`.
 - Login real: `POST /login`; validação: `GET /login/verifyToken`; logout: `POST /login/logout`. O login exige verificação humana conforme configuração do backend.
-- Rotas por motorista ainda usam o contrato legado `GET /trips/search/driver/:driverId`; histórico usa `/trips/search/freight/...`.
-- O namespace existente `/driver-app` expõe somente:
+- A viagem atribuída usa a fachada autenticada `GET /driver-app/trips/assigned`, com fallback legado isolado no cliente para compatibilidade.
+- O namespace `/driver-app` expõe:
+  - `POST /driver-app/auth/login`;
+  - `GET /driver-app/trips/assigned`;
   - `GET /driver-app/tracking/config`;
+  - `POST /driver-app/tracking/location` e `/tracking/logout`;
+  - `POST /driver-app/push-token`;
+  - `GET /driver-app/pending-receipts`;
+  - `POST /driver-app/trips/:tripId/accept` e `/reorder`;
   - `POST /driver-app/trip-stops/:id/status`;
-  - `POST /driver-app/trips/:tripId/reorder`;
+  - `POST /driver-app/trip-stops/:id/select-next`, `/cancellation-request` e `/occurrences`;
+  - `POST /driver-app/driver-occurrences/:id/share-started`;
   - `POST /driver-app/alerts`.
 - A mudança de status já valida transições, empresa, vínculo do motorista, parada bloqueante, `client_event_id` para deduplicação e localização anexada ao evento.
 - Há tabelas de sessões de rastreamento, posições e eventos de execução, além de Socket.IO para o painel web.
-- Gap crítico: `DriverTrackingService.registerLocation` existe, mas não há controller/rota pública para posições periódicas. O app não inventará esse endpoint.
-- Canhotos já possuem domínio `receipts`, armazenamento R2/S3 compatível e upload em `/receipts`; o contrato e a autorização para o perfil motorista precisam ser validados antes da integração móvel.
-- Ocorrências, devoluções e coletas têm rotas próprias, mas ainda precisam de uma fachada mobile consistente e testes de permissão/idempotência.
+- Posições periódicas são persistidas primeiro no SQLite e enviadas individualmente ao endpoint idempotente. Ainda não há endpoint de lote.
+- O app prepara canhoto, legenda e grupo para compartilhamento; o bot/ backend confirma a postagem e conclui a entrega.
+- Ocorrências de devolução, quebra de peso, canhoto retido, produto faltante, reentrega e cancelamento usam uma fachada mobile com evidência e `client_event_id`.
 
 ### Frontend web
 
@@ -67,4 +74,4 @@ Foi escolhido Expo SDK 56 / RN 0.85 / React 19.2.3. O SDK 56 suporta Node 20.19.
 
 ## Próximo contrato recomendado
 
-Criar uma fachada móvel autenticada para sessão, lista/snapshot de rota, upload periódico de posições, upload de canhoto e sincronização em lote. Cada mutação deve aceitar idempotency key e retornar versão/timestamp canônicos sem quebrar as rotas web legadas.
+Completar a outbox offline das mutações operacionais e, se o volume justificar, criar envio em lote de posições. Cada mutação deve continuar aceitando idempotency key e retornando versão/timestamp canônicos sem quebrar as rotas web legadas.

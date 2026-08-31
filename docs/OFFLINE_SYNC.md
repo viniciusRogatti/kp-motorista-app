@@ -23,6 +23,6 @@ Cada ação possui UUID, tipo, entidade, payload, tentativas, última tentativa,
 6. em falha transitória, incrementar tentativas e aplicar backoff com jitter;
 7. nunca apagar mídia antes da confirmação do backend/storage.
 
-A primeira entrega cria o esquema e diagnósticos, mas não envia ações: contratos de lote e posição ainda precisam ser fechados. A simulação offline da tela interna bloqueia os testes de API/Socket na UI; não altera a conectividade do aparelho.
+As posições já são persistidas localmente e reenviadas individualmente com chave idempotente. A outbox genérica das demais ações ainda não está ligada às mutações da rota; mudança de status, reordenação e ocorrências exigem rede no momento da ação. A simulação offline da tela interna bloqueia os testes de API/Socket na UI; não altera a conectividade do aparelho.
 
 Migrações locais são incrementais por `PRAGMA user_version`. Não use `prebuild --clean` como estratégia de banco: esse comando não deve apagar dados do app instalado.

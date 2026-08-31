@@ -4,14 +4,16 @@ Assistente de Rotas e Gestão Operacional da KP Transportes.
 
 Novo aplicativo Android dos motoristas da KP Transportes. Este projeto é independente de `apps/driver-app`; o aplicativo anterior foi usado somente como referência operacional.
 
-## Estado da primeira entrega
+## Estado atual
 
 - Expo SDK 56, React Native 0.85, React 19.2 e TypeScript 6.
 - Expo Router, Development Build e Continuous Native Generation (CNG).
 - variantes Development, Preview e Production;
-- login de motorista, sessão segura, viagem atribuída com cache offline e diagnóstico interno;
+- login de motorista, sessão segura, aceite e execução da viagem atribuída com cache offline e diagnóstico interno;
 - SQLite com esquema inicial de viagem, paradas, ações, posições e mídias pendentes;
-- tarefa de localização em segundo plano para teste controlado;
+- localização em segundo plano durante a viagem, com persistência local e reenvio idempotente;
+- reordenação de paradas, ocorrências operacionais, captura de canhoto e compartilhamento orientado para o WhatsApp;
+- registro de push token e recebimento de notificações operacionais;
 - configuração central validada e bloqueio de localhost em produção;
 - nenhum segredo, credencial, endpoint de produção ou projeto Firebase incluído.
 
@@ -59,4 +61,4 @@ Builds EAS são deliberadamente manuais: `build:development`, `build:preview` e 
 
 ## Limites atuais
 
-Esta entrega ainda não inicia/finaliza rotas, envia POD, recebe notificações push reais nem publica posições. Login, sessão local e leitura da viagem atribuída estão implementados, mas o teste ponta a ponta aguarda um backend de homologação confirmado. O backend continua sendo a autoridade para os fluxos operacionais.
+O backend continua sendo a autoridade para os fluxos operacionais. A localização possui fila offline própria, mas as demais mutações ainda são enviadas diretamente e precisam de uma outbox operacional completa para funcionar sem rede. O compartilhamento do canhoto prepara foto e legenda, porém o motorista ainda escolhe manualmente o WhatsApp e o grupo; a baixa final depende do reconhecimento da postagem pelo backend. Builds e validações em aparelho físico continuam sendo etapas obrigatórias antes de uma publicação.
