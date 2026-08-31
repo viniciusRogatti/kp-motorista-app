@@ -30,26 +30,44 @@ export async function createDriverOccurrence(token: string, stopId: number, inpu
   clientEventId: string;
   evidence?: EvidencePhoto | null;
 }) {
-  const form = new FormData();
-  form.append('occurrenceType', input.occurrenceType);
-  if (input.returnScope) form.append('returnScope', input.returnScope);
-  if (input.retentionKind) form.append('retentionKind', input.retentionKind);
-  form.append('reason', input.reason);
-  form.append('description', input.description ?? '');
-  form.append('items', JSON.stringify(input.items ?? []));
-  form.append('clientEventId', input.clientEventId);
-  if (input.evidence) {
-    form.append('evidence', {
-      uri: input.evidence.uri,
-      type: input.evidence.mimeType || 'image/jpeg',
-      name: input.evidence.fileName || `comprovante-${input.clientEventId}.jpg`,
-    } as unknown as Blob);
+  const payload = {
+    occurrenceType: input.occurrenceType,
+    returnScope: input.returnScope ?? null,
+    retentionKind: input.retentionKind ?? null,
+    reason: input.reason,
+    description: input.description ?? '',
+    items: input.items ?? [],
+    clientEventId: input.clientEventId,
+  };
+  if (!input.evidence) {
+    const response = await apiRequest<unknown>(`/driver-app/trip-stops/${stopId}/occurrences`, {
+      method: 'POST',
+      token,
+      body: JSON.stringify(payload),
+    });
+    const parsed = responseSchema.safeParse(response);
+    if (!parsed.success) throw new ApiError('O servidor não confirmou a ocorrência.', null, 'INVALID_OCCURRENCE_RESPONSE');
+    return parsed.data;
   }
+
+  const form = new FormData();
+  form.append('occurrenceType', payload.occurrenceType);
+  if (payload.returnScope) form.append('returnScope', payload.returnScope);
+  if (payload.retentionKind) form.append('retentionKind', payload.retentionKind);
+  form.append('reason', payload.reason);
+  form.append('description', payload.description);
+  form.append('items', JSON.stringify(payload.items));
+  form.append('clientEventId', payload.clientEventId);
+  form.append('evidence', {
+    uri: input.evidence.uri,
+    type: input.evidence.mimeType || 'image/jpeg',
+    name: input.evidence.fileName || `comprovante-${input.clientEventId}.jpg`,
+  } as unknown as Blob);
   const response = await apiRequest<unknown>(`/driver-app/trip-stops/${stopId}/occurrences`, {
     method: 'POST',
     token,
     body: form,
-    timeoutMs: 45_000,
+    timeoutMs: 60_000,
   });
   const parsed = responseSchema.safeParse(response);
   if (!parsed.success) throw new ApiError('O servidor não confirmou a ocorrência.', null, 'INVALID_OCCURRENCE_RESPONSE');
